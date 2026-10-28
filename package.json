@@ -1,0 +1,14 @@
+{
+  "name": "pio-notas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pío: juego web para móvil para aprender a leer notas musicales",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/",
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
