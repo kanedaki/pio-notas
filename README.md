@@ -30,28 +30,41 @@ descarguen la versión nueva.
 
 ## Qué incluye
 
-- 55 niveles en 13 mundos, de «¿línea o espacio?» a armaduras de 7 alteraciones, con claves de sol, fa,
-  do en 3.ª y do en 4.ª y gran pentagrama. Cada nivel empieza con una lección corta (los pájaros nuevos
-  llegan con su nombre y su sonido) y una prueba de 3–4 preguntas.
-- Respuesta con botones (Do Re Mi, C D E o alemán con H), piano de una octava o teclado MIDI.
-- Algoritmo adaptativo: más práctica de lo que se falla y de lo lento, refuerzo a los pocos turnos tras un
-  error, repaso espaciado entre días (cajas de Leitner) y registro de con qué nota se confunde cada una.
-- Ritmo ajustado a la edad, modo con ayuda, práctica libre (clave, líneas adicionales, alteraciones,
-  armadura, velocidad, sin fin), tablas de notas, progreso por nota, varios jugadores, resumen para el
-  profe y copia de seguridad.
+- **Leer notas:** 42 niveles en clave de sol, clave de fa y gran pentagrama, líneas adicionales,
+  alteraciones y armaduras (y un mundo opcional para expertas).
+- **Teoría musical:** 50 niveles de Lenguaje Musical de enseñanzas elementales: figuras y silencios,
+  compases, matices y signos, intervalos (número y calidad), tonos y semitonos, grados, acordes,
+  armaduras y escalas, compases compuestos. «Seguir» intercala lectura y teoría.
+- Cada nivel empieza con una lección corta (lo nuevo, dibujado y con sonido) y una prueba; tras cada fallo
+  se ve la respuesta y la regla que la explica.
+- Respuesta con botones (Do Re Mi, C D E o alemán), piano (con la octava exacta desde el gran pentagrama)
+  o teclado MIDI.
+- Algoritmo adaptativo, repaso espaciado de notas y de teoría, niveles consolidados al superarlos en dos
+  días, ritmo automático y ritmo según la edad.
+- Partida guardada y sincronización entre dispositivos con un código familiar.
+- Su pájaro: temas de colores, colores y complementos que se compran con alpiste (se gana jugando),
+  logros, reto del día y música de fondo en los menús.
+- Accesibilidad: letra grande, contraste alto, avisos para lectores de pantalla y «reducir movimiento».
 
 ## Documentación
 
 - [docs/investigacion-noteworks.md](docs/investigacion-noteworks.md): inventario de Noteworks y Noteworks Lite.
 - [docs/investigacion-pedagogia.md](docs/investigacion-pedagogia.md): buenas prácticas para aprender a leer notas.
+- [docs/investigacion-teoria.md](docs/investigacion-teoria.md): currículo de teoría (Lenguaje Musical) y errores típicos.
 - [docs/diseno-niveles.md](docs/diseno-niveles.md): reglas del juego y currículo, con el porqué de cada decisión.
+- [docs/backlog.md](docs/backlog.md): lo que queda para más adelante.
 
 ## Estructura
 
 | Archivo | Qué hace |
 |---|---|
 | `js/music.js` | Notas, claves, posiciones, armaduras y nombres |
-| `js/curriculum.js` | Mundos, niveles, lecciones, práctica libre y repaso |
+| `js/curriculum.js` | Mundos de lectura, ruta, construcción de niveles, práctica y repasos |
+| `js/curriculum-theory.js` | Mundos y niveles de teoría con sus lecciones |
+| `js/theory.js` | Generadores de preguntas de teoría |
+| `js/notation.js`, `js/boards.js` | Dibujo de figuras, compases y carteles de teoría |
+| `js/look.js`, `js/rewards.js` | Temas, complementos, alpiste, logros y reto del día |
+| `js/merge.js`, `js/sync.js` | Fusión de datos y sincronización entre dispositivos |
 | `js/adaptive.js` | Selección ponderada, refuerzo tras error y cajas de Leitner |
 | `js/game.js` | Motor de la partida |
 | `js/staff.js` | Dibujo SVG del pentagrama y de los pájaros |

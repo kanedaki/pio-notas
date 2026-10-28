@@ -4,7 +4,7 @@ import * as store from './store.js';
 import * as audio from './audio.js';
 import {
   WORLDS, LEVELS, levelById, buildLevel, practiceLevel, reviewLevel, isUnlocked, nextLevel, rangeFor,
-  LANDMARKS, CHART_TIPS, nextToPlay,
+  LANDMARKS, CHART_TIPS, nextToPlay, theoryReviewLevel, theoryDueCount,
 } from './curriculum.js';
 import { Game } from './game.js';
 import { drawBoard } from './boards.js';
@@ -16,6 +16,9 @@ import {
   displayName, keyName, CLEFS, midi, parseNote, staffPos, noteId, isCorrect, pitchClass, isLine,
 } from './music.js';
 import { masteryLevel, dueCount, reviewKeys, recentAccuracy, median } from './adaptive.js';
+import { SKINS, COLORS, HATS, birdSvg, findColor } from './look.js';
+import { ACHIEVEMENTS, seedsBalance, seedsFor, newAchievements, dailyChallenge } from './rewards.js';
+import { dayKey } from './merge.js';
 
 const app = document.getElementById('app');
 const DAILY_GOAL = 60;
@@ -44,20 +47,24 @@ const ICONS = {
   gear: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.5 7.5 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>',
   arrow: '<svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.3 5.3a1 1 0 0 1 1.4 0l6 6a1 1 0 0 1 0 1.4l-6 6a1 1 0 0 1-1.4-1.4l5.3-5.3-5.3-5.3a1 1 0 0 1 0-1.4z"/></svg>',
   flame: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c1 3.3 5.5 5.7 5.5 11a5.5 5.5 0 0 1-11 0c0-2.4 1.2-3.9 2.3-5 .2 1.7 1 2.8 2 3.3C10.3 8.8 11 5.5 12 2.5z"/></svg>',
+  seed: '<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="5" ry="8" transform="rotate(30 12 12)"/><path d="M10 7.5q3 4.5 4 9" class="seed-line"/></svg>',
+  map: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7q9 6 18 0M3 12q9 6 18 0M3 17q9 6 18 0" class="tile-line"/><circle cx="8" cy="9.6" r="2.2"/><circle cx="16" cy="14.6" r="2.2"/></svg>',
+  review: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 1-7.4 5" class="tile-line"/><path d="M3 4.5l1.6 4.6 4.6-1.4"/></svg>',
+  practice: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V9M12 20V4M19 20v-8" class="tile-line"/><circle cx="5" cy="9" r="2.4"/><circle cx="12" cy="13" r="2.4"/><circle cx="19" cy="7" r="2.4"/></svg>',
+  progress: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16" class="tile-line"/><rect x="5" y="11" width="3.4" height="7" rx="1"/><rect x="10.3" y="7" width="3.4" height="11" rx="1"/><rect x="15.6" y="4" width="3.4" height="14" rx="1"/></svg>',
+  trophy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M7 6H4q0 4 4 4M17 6h3q0 4-4 4M12 13v4M8 20h8" class="tile-line"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 10h18M3 14h18M3 18h18" class="tile-line"/><ellipse cx="9" cy="14" rx="2.4" ry="1.8"/><ellipse cx="15" cy="8" rx="2.4" ry="1.8"/></svg>',
+  help: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" class="tile-line"/><path d="M9.5 9.5a2.6 2.6 0 1 1 3.4 2.5c-.6.3-.9.8-.9 1.5V14" class="tile-line"/><circle cx="12" cy="17" r="1.1"/></svg>',
+  bird: '<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="13" rx="7" ry="5.4" transform="rotate(-18 12 13)"/><path d="M5.6 12.6l-3.6 1.2 3.4 1.6z" class="tile-sun"/><path d="M17.4 10.6l4.4-3-1 4.4z"/></svg>',
 };
 
 const star = (on) => `<svg class="${on ? 'on' : ''}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg>`;
 const miniStars = (n) => `<span class="mini-stars" aria-label="${n} de 3 estrellas">${[1, 2, 3].map((i) => star(i <= n)).join('')}</span>`;
 
-function avatar(color) {
-  const g = GLYPHS.noteheadBlack;
-  return `<svg class="avatar" viewBox="-14 -10 28 20" style="--c:${color}" aria-hidden="true">
-    <path class="head" d="${g.d}" transform="translate(-9 0) scale(0.06 -0.06)"/>
-    <path class="beak" d="M-7.8 -0.3 l-5.4 1.7 l5.1 2.4 z"/>
-    <path class="head" d="M7 -2.7 l6.9 -4.5 l-1.8 6.1 z"/>
-    <circle class="eye" cx="-3.2" cy="-2" r="1.6"/>
-  </svg>`;
+function avatar(color, hat = null, cls = 'avatar', mood = 'happy') {
+  return birdSvg({ color, hat, cls, mood });
 }
+const hatOf = (p) => p?.equipped?.hat ?? null;
 
 function clefIcon(clef) {
   const info = CLEFS[clef];
@@ -121,13 +128,16 @@ function onSeg(root, handler) {
   });
 }
 
-// El tema elegido en Ajustes manda; en «Automático» se respeta el que traiga la página que nos aloja.
-const hostTheme = document.documentElement.dataset.theme;
+// Tema (cielo) equipado, contraste y tamaño de letra. «Automático»: Amanecer o Noche según el sistema.
 function applyTheme() {
   const s = store.settings();
-  const theme = s.theme === 'auto' ? hostTheme : s.theme;
-  if (theme) document.documentElement.dataset.theme = theme;
-  else delete document.documentElement.dataset.theme;
+  const root = document.documentElement;
+  if (s.skin && s.skin !== 'auto') root.dataset.skin = s.skin;
+  else delete root.dataset.skin;
+  if (s.highContrast) root.dataset.contrast = 'high';
+  else delete root.dataset.contrast;
+  if (s.largeText) root.dataset.text = 'large';
+  else delete root.dataset.text;
   audio.configure(s);
 }
 
@@ -163,7 +173,7 @@ function screenPlayers() {
       ${list
         .map((p) => {
           const stars = Object.values(p.progress).reduce((s, x) => s + x.stars, 0);
-          return `<button class="player" type="button" data-id="${p.id}">${avatar(p.color)}<b>${esc(p.name)}</b><span class="meta">${stars} ★</span></button>`;
+          return `<button class="player" type="button" data-id="${p.id}">${avatar(p.color, hatOf(p))}<b>${esc(p.name)}</b><span class="meta">${stars} ★</span></button>`;
         })
         .join('')}
     </div>
@@ -215,24 +225,63 @@ function screenPlayers() {
 
 // ---------- inicio ----------
 
+// Lo que dice el pájaro en el inicio: saludo, lo que toca y algún ánimo.
+function birdSays(p, next, toConsolidate) {
+  const h = new Date().getHours();
+  const hello = h < 13 ? '¡Buenos días' : h < 20 ? '¡Buenas tardes' : '¡Buenas noches';
+  const lines = [];
+  if (!Object.keys(p.progress).length) lines.push('Soy tu pájaro. Te enseño a leer notas: empezamos por mirar si me poso en una línea o en un espacio.');
+  else if (toConsolidate.length) lines.push(`Repite «${toConsolidate[0].title}» para que no se te olvide.`);
+  else lines.push(`Hoy toca ${levelTag(next).toLowerCase()}: ${next.title}.`);
+  if (p.streak.count >= 2) lines.push(`Llevas ${p.streak.count} días seguidos.`);
+  return { title: `${hello}, ${p.name}!`, text: lines.join(' ') };
+}
+
+const TIPS = [
+  'Mira primero si la nota está en una línea o en un espacio.',
+  'Cuenta desde la nota guía más cercana, no desde abajo del todo.',
+  'Cinco minutos al día valen más que una hora el domingo.',
+  'En clave de fa, los dos puntos abrazan la línea del Fa.',
+  'Un intervalo se cuenta incluyendo las dos notas.',
+  'Con sostenidos, la tonalidad está un semitono por encima del último.',
+  'Si fallas, la nota vuelve enseguida: es para que se te quede.',
+];
+
 function screenHome() {
   const p = store.activeProfile();
+  const s = store.settings();
   const saved = store.savedGame();
   const today = store.notesToday();
   const next = nextToPlay(p.progress);
   const world = WORLDS.find((w) => w.id === next.world);
-  const due = ['treble', 'bass'].reduce((s, c) => s + dueCount(p.cards, c), 0);
+  const due = ['treble', 'bass'].reduce((sum, c) => sum + dueCount(p.cards, c), 0);
   const first = !Object.keys(p.progress).length;
+  const todayKey = dayKey();
+  const toConsolidate = LEVELS.filter((l) => {
+    const x = p.progress[l.id];
+    return x?.stars > 0 && x.passedDay && x.passedDay !== todayKey && !x.consolidated;
+  }).slice(0, 3);
+  const daily = dailyChallenge(p);
+  const says = birdSays(p, next, toConsolidate);
+  const seeds = seedsBalance(p);
+  const got = ACHIEVEMENTS.filter((a) => p.achievements?.[a.id]).length;
   const root = render(`
     <header class="home-head">
-      <button class="who" type="button" data-go="players" aria-label="Cambiar de jugador">${avatar(p.color)}<span>${esc(p.name)}</span></button>
-      <span class="streak" title="Días seguidos jugando">${ICONS.flame}${p.streak.count} ${p.streak.count === 1 ? 'día' : 'días'}</span>
+      <button class="who" type="button" data-go="players" aria-label="Cambiar de jugadora">${avatar(p.color, hatOf(p))}<span>${esc(p.name)}</span></button>
+      <span class="chip-stat streak" title="Días seguidos jugando">${ICONS.flame}${p.streak.count}</span>
+      <button class="chip-stat seeds" type="button" data-go="tienda" title="Alpiste para la tienda">${ICONS.seed}${seeds}</button>
       <button class="icon-btn" type="button" data-go="settings" aria-label="Ajustes">${ICONS.gear}</button>
     </header>
-    <section class="hero">
-      <h1 class="wordmark">Pío</h1>
-      <p class="tagline">Lee las notas antes de que los pájaros lleguen a la clave.</p>
-      <div class="hero-slot"></div>
+    <section class="hero-card">
+      <svg class="hero-wires" viewBox="0 0 300 130" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M-10 46 Q150 66 310 42" class="hw"/>
+        <path d="M-10 78 Q150 98 310 74" class="hw"/>
+        <path d="M-10 110 Q150 130 310 106" class="hw"/>
+      </svg>
+      <div class="hero-mini" aria-hidden="true">${avatar('#ffffff', null, 'avatar tiny a1')}${avatar('#ffffff', null, 'avatar tiny a2')}</div>
+      <button class="hero-bird" type="button" aria-label="Tu pájaro: toca para oír un consejo">${avatar(p.color, hatOf(p), 'avatar big', 'happy')}</button>
+      <div class="bubble" role="status"><b>${esc(says.title)}</b><span>${esc(says.text)}</span></div>
+      <h1 class="wordmark small">Pío</h1>
     </section>
     ${saved ? `<button class="btn primary continue resume" type="button" data-go="play/${saved.arg}/seguir">
       <span>Continuar partida<small>${esc(saved.title)} · ${saved.state.resolved} de ${saved.count}</small></span>${ICONS.arrow}
@@ -240,34 +289,147 @@ function screenHome() {
     <button class="btn ${saved ? '' : 'primary'} continue" type="button" data-go="level/${next.id}">
       <span>${first ? 'Empezar' : 'Seguir'}: ${levelTag(next).toLowerCase()}<small>${esc(world.title)} · ${esc(next.title)}</small></span>${ICONS.arrow}
     </button>
-    <nav class="menu-grid" aria-label="Menú">
-      <button class="menu-item" type="button" data-go="map"><b>Camino</b><span>Todos los niveles, de la clave de sol a las armaduras.</span></button>
-      <button class="menu-item" type="button" data-go="review">${due ? `<i class="badge">${due}</i>` : ''}<b>Repaso</b><span>Las notas que te cuestan, en el momento justo.</span></button>
-      <button class="menu-item" type="button" data-go="practice"><b>Práctica libre</b><span>Elige clave, notas, alteraciones y velocidad.</span></button>
-      <button class="menu-item" type="button" data-go="progress"><b>Progreso</b><span>Qué notas dominas y cuáles no.</span></button>
-      <button class="menu-item" type="button" data-go="chart"><b>Tablas de notas</b><span>Todas las notas de cada clave con su nombre.</span></button>
-      <button class="menu-item" type="button" data-go="help"><b>Cómo se juega</b><span>Reglas, estrellas y consejos para leer más rápido.</span></button>
+    ${first ? '' : `<button class="daily ${daily.done ? 'done' : ''}" type="button" ${daily.done ? 'disabled' : 'data-go="play/daily"'}>
+      <span class="daily-tag">Reto del día</span>
+      <b>${esc(daily.title)}</b>
+      <span class="muted small">${daily.done ? 'Hecho. Mañana habrá otro.' : `${esc(daily.text)} Premio: 30 de alpiste.`}</span>
+    </button>`}
+    ${toConsolidate.length ? `<section class="consolidate">
+      <h2>Para consolidar hoy</h2>
+      <p class="muted small">Los superaste otro día: si los repites hoy, quedan guardados para siempre (y ganas alpiste).</p>
+      <div class="chips">${toConsolidate.map((l) => `<button class="chip tap" type="button" data-go="level/${l.id}">${esc(levelTag(l))}: ${esc(l.title)}</button>`).join('')}</div>
+    </section>` : ''}
+    <nav class="tiles" aria-label="Menú">
+      <button class="tile" type="button" data-go="map">${ICONS.map}<b>Camino</b></button>
+      <button class="tile" type="button" data-go="review">${due ? `<i class="badge">${due}</i>` : ''}${ICONS.review}<b>Repaso</b></button>
+      <button class="tile" type="button" data-go="practice">${ICONS.practice}<b>Práctica</b></button>
+      <button class="tile" type="button" data-go="progress">${ICONS.progress}<b>Progreso</b></button>
+      <button class="tile" type="button" data-go="tienda">${ICONS.bird}<b>Tu pájaro</b></button>
+      <button class="tile" type="button" data-go="logros">${ICONS.trophy}<b>Logros</b><span>${got}/${ACHIEVEMENTS.length}</span></button>
+      <button class="tile" type="button" data-go="chart">${ICONS.chart}<b>Tablas</b></button>
+      <button class="tile" type="button" data-go="help">${ICONS.help}<b>Cómo se juega</b></button>
     </nav>
     <section class="goal" aria-label="Objetivo de hoy">
-      <div class="row"><span>Objetivo de hoy</span><span>${Math.min(today, DAILY_GOAL)} de ${DAILY_GOAL} notas</span></div>
+      <div class="row"><span>Objetivo de hoy</span><span>${Math.min(today, DAILY_GOAL)} de ${DAILY_GOAL} respuestas</span></div>
       <div class="goal-bar"><i style="width:${Math.min(100, (100 * today) / DAILY_GOAL)}%"></i></div>
     </section>`, 'home');
   bindNav(root);
-
-  const melody = ['G4', 'A4', 'B4', 'D5', 'G5'].map((id) => ({ clef: 'treble', pos: staffPos(parseNote(id), 'treble'), data: id }));
-  const hero = miniStaff({ clefs: ['treble'], items: melody, spacing: 30, cls: 'hero-staff', birds: store.settings().birds });
-  hero.style.setProperty('--player', p.color);
-  hero.addEventListener('pointerdown', (e) => {
-    const g = e.target.closest('[data-note]');
-    if (!g) return;
+  root.style.setProperty('--player', p.color);
+  let tip = 0;
+  root.querySelector('.hero-bird').addEventListener('pointerdown', () => {
     audio.unlock();
-    audio.playMidi(midi(parseNote(g.dataset.note)));
-    const inner = g.querySelector('.bird-inner');
-    inner.classList.remove('shake');
-    void inner.getBoundingClientRect();
-    inner.classList.add('shake');
+    audio.sfx('chirp');
+    const b = root.querySelector('.bubble');
+    b.innerHTML = `<b>Consejo</b><span>${esc(TIPS[tip++ % TIPS.length])}</span>`;
+    const bird = root.querySelector('.hero-bird .avatar');
+    bird.classList.remove('hop');
+    void bird.getBoundingClientRect();
+    bird.classList.add('hop');
   });
-  root.querySelector('.hero-slot').replaceWith(hero);
+  void s;
+}
+
+// ---------- tu pájaro (tienda) ----------
+
+function screenShop(tab = 'hat') {
+  const p = store.activeProfile();
+  const s = store.settings();
+  const owned = (id) => p.owned?.[id] || (id.startsWith('color:') && findColor(id.slice(6))?.price === 0) || (id.startsWith('skin:') && SKINS.find((k) => `skin:${k.id}` === id)?.price === 0);
+  const balance = seedsBalance(p);
+  const curColor = findColor(p.color)?.id;
+  const skin = s.skin ?? 'auto';
+  const lists = {
+    hat: HATS.map((h) => ({ id: `hat:${h.id}`, name: h.name, price: h.price, on: hatOf(p) === h.id, preview: avatar(p.color, h.id, 'avatar item') })),
+    color: COLORS.map((c) => ({ id: `color:${c.id}`, name: c.name, price: c.price, on: curColor === c.id, preview: avatar(c.value, hatOf(p), 'avatar item') })),
+    skin: [{ id: 'skin:auto', name: 'Automático', price: 0, on: skin === 'auto', preview: '<span class="skin-swatch auto"></span>' },
+      ...SKINS.map((k) => ({ id: `skin:${k.id}`, name: k.name, price: k.price, on: skin === k.id, preview: `<span class="skin-swatch" data-skin-preview="${k.id}"></span>` }))],
+  };
+  const root = render(`
+    ${topbar('Tu pájaro')}
+    <section class="shop-hero">
+      ${avatar(p.color, hatOf(p), 'avatar huge', 'sing')}
+      <p class="seed-balance">${ICONS.seed}<b>${balance}</b> de alpiste</p>
+      <p class="muted small">Ganas alpiste con cada acierto, con las estrellas nuevas, al consolidar niveles, con el reto del día y con los logros.</p>
+    </section>
+    ${seg('shop', [['hat', 'Complementos'], ['color', 'Colores'], ['skin', 'Temas']], tab)}
+    <div class="shop-grid">
+      ${lists[tab].map((it) => {
+        const mine = it.id === 'skin:auto' || owned(it.id);
+        return `<button class="shop-item ${it.on ? 'on' : ''} ${mine ? 'mine' : ''}" type="button" data-item="${it.id}">
+          <span class="shop-preview">${it.preview}</span>
+          <b>${esc(it.name)}</b>
+          <span class="price">${it.on ? 'Puesto' : mine ? 'Ponérselo' : `${ICONS.seed}${it.price}`}</span>
+        </button>`;
+      }).join('')}
+    </div>
+    <div class="buy-sheet" hidden></div>`);
+  bindNav(root);
+  onSeg(root, (_, v) => go(`tienda/${v}`));
+  const sheet = root.querySelector('.buy-sheet');
+  const equip = (id) => {
+    const [kind, key] = id.split(':');
+    if (kind === 'skin') store.updateSettings({ skin: key });
+    else store.updateProfile((q) => {
+      q.equipped = { ...(q.equipped ?? {}) };
+      if (kind === 'hat') q.equipped.hat = q.equipped.hat === key ? null : key;
+      if (kind === 'color') {
+        q.color = findColor(key).value;
+        q.equipped.color = key;
+        q.updatedAt = Date.now();
+      }
+      q.equippedAt = Date.now();
+    });
+    applyTheme();
+    audio.sfx('chirp');
+    screenShop(tab);
+  };
+  root.querySelector('.shop-grid').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-item]');
+    if (!btn) return;
+    audio.unlock();
+    const id = btn.dataset.item;
+    const item = lists[tab].find((x) => x.id === id);
+    if (id === 'skin:auto' || owned(id)) return equip(id);
+    sheet.hidden = false;
+    sheet.innerHTML = balance >= item.price
+      ? `<p><b>${esc(item.name)}</b> cuesta ${item.price} de alpiste. Te quedarán ${balance - item.price}.</p>
+        <div class="actions two"><button class="btn" type="button" data-buy="no">Ahora no</button><button class="btn primary" type="button" data-buy="yes">Comprar</button></div>`
+      : `<p><b>${esc(item.name)}</b> cuesta ${item.price}. Te faltan ${item.price - balance} de alpiste: juega un poco más y vuelve.</p>
+        <div class="actions"><button class="btn" type="button" data-buy="no">Vale</button></div>`;
+    sheet.onclick = (ev) => {
+      const act = ev.target.closest('[data-buy]')?.dataset.buy;
+      if (act === 'no') sheet.hidden = true;
+      if (act === 'yes') {
+        store.updateProfile((q) => { q.owned = { ...(q.owned ?? {}), [id]: Date.now() }; });
+        audio.sfx('star');
+        const unlocked = newAchievements(store.activeProfile());
+        if (unlocked.length) store.updateProfile((q) => unlocked.forEach((a) => { q.achievements = { ...(q.achievements ?? {}), [a.id]: Date.now() }; }));
+        equip(id);
+      }
+    };
+    sheet.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+}
+
+// ---------- logros ----------
+
+function screenAchievements() {
+  const p = store.activeProfile();
+  const got = ACHIEVEMENTS.filter((a) => p.achievements?.[a.id]);
+  const root = render(`
+    ${topbar('Logros')}
+    <p class="muted">${got.length} de ${ACHIEVEMENTS.length}. Cada logro da alpiste para la tienda.</p>
+    <ul class="achievements">
+      ${ACHIEVEMENTS.map((a) => {
+        const at = p.achievements?.[a.id];
+        return `<li class="${at ? 'got' : ''}">
+          <span class="medal" aria-hidden="true">${ICONS.trophy}</span>
+          <div><b>${esc(a.name)}</b><span class="muted small">${esc(a.text)}</span></div>
+          <span class="reward">${at ? new Date(at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : `+${a.reward}`}</span>
+        </li>`;
+      }).join('')}
+    </ul>`);
+  bindNav(root);
 }
 
 // ---------- camino ----------
@@ -572,7 +734,19 @@ function mountQuiz(root, level, s, color, onDone) {
 
 function levelFor(arg) {
   const p = store.activeProfile();
+  if (arg === 'daily') {
+    // Reto del día: un nivel ya superado con un giro (más deprisa, o sin apenas fallos).
+    const ch = dailyChallenge(p);
+    if (ch.done) return null;
+    const level = buildLevel(levelById(ch.levelId), { naming: store.settings().naming });
+    level.daily = true;
+    level.title = ch.title;
+    if (ch.twist === 'rapido') Object.assign(level, { travelMs: level.travelMs * 0.75, spawnMs: level.spawnMs * 0.75, warmup: 0 });
+    else level.passAcc = 0.95;
+    return level;
+  }
   if (arg === 'practice') return practiceLevel(store.settings().practice ?? PRACTICE_DEFAULTS);
+  if (arg === 'review-teoria') return theoryReviewLevel(p.cards, p.progress, { naming: store.settings().naming });
   if (arg?.startsWith('review-')) {
     const clef = arg.slice(7);
     const keys = reviewKeys(p.cards, clef);
@@ -606,8 +780,12 @@ function screenPlay(arg, help = false, resume = null) {
     onSave: (state) => store.saveGame({ arg, title: levelLabel(level), count: level.count, state }),
     onEnd: (result) => {
       result.paceChange = result.help ? 0 : adjustPace(level, result);
+      result.seeds = result.help ? 0 : seedsFor(store.activeProfile(), { levelId: level.id, answers: result.answers, stars: result.stars, daily: level.daily });
       if (!result.help) store.recordSession({
         arg,
+        seeds: result.seeds,
+        daily: !!level.daily,
+        fast: result.stars === 3 && result.medianMs !== null && result.medianMs < 1000,
         noCards: !!level.answer,
         levelId: level.id,
         mode: level.world,
@@ -616,6 +794,13 @@ function screenPlay(arg, help = false, resume = null) {
         answers: result.answers,
         targetMs: result.targetMs,
       });
+      result.unlocked = result.help ? [] : newAchievements(store.activeProfile());
+      if (result.unlocked.length) {
+        store.updateProfile((q) => {
+          q.achievements = { ...(q.achievements ?? {}) };
+          for (const a of result.unlocked) q.achievements[a.id] = Date.now();
+        });
+      }
       game?.destroy();
       game = null;
       screenResults(level, result, arg, prevBest);
@@ -672,13 +857,16 @@ function screenResults(level, result, arg, prevBest) {
     : [...new Set(wrong.map((a) => a.key))].map((k) => level.pool.find((p) => p.key === k)).filter(Boolean);
   const ok = result.answers.filter((a) => a.correct).length;
   const title = result.help ? 'Ya conoces estas notas' : !result.stars ? 'Casi lo tienes' : result.stars === 3 ? '¡Perfecto!' : level.id ? '¡Nivel superado!' : '¡Bien hecho!';
-  const back = level.id ? 'map' : level.world === 'review' ? 'review' : 'practice';
+  const back = level.daily ? 'home' : level.id ? 'map' : level.world === 'review' ? 'review' : 'practice';
   const root = render(`
     <div class="result-head">
       <div class="big-stars">${[1, 2, 3].map((i) => star(i <= result.stars)).join('')}</div>
       <h1>${title}</h1>
       ${result.help ? '<p class="muted">Ahora prueba sin ayuda para ganar estrellas.</p>' : !result.stars ? `<p class="muted">${level.id ? `Para abrir el siguiente nivel necesitas un ${pct(level.passAcc)} de aciertos. ` : ''}Lo que fallaste saldrá más a menudo hasta que lo domines.</p>` : result.stars < 3 ? `<p class="muted">${nextStarTip(result, level)}</p>` : ''}
     </div>
+    ${result.seeds ? `<p class="seed-gain">${ICONS.seed}+${result.seeds} de alpiste</p>` : ''}
+    ${(result.unlocked ?? []).slice(0, 3).map((a) => `<div class="unlocked"><span class="medal">${ICONS.trophy}</span><div><b>¡Logro! ${esc(a.name)}</b><span class="muted small">${esc(a.text)} +${a.reward} de alpiste</span></div></div>`).join('')}
+    ${(result.unlocked ?? []).length > 3 ? `<p class="pace-note">Y ${result.unlocked.length - 3} logros más: míralos en Logros.</p>` : ''}
     ${result.paceChange ? `<p class="pace-note">${result.paceChange < 0 ? 'Vas sobrada: los pájaros irán un poco más deprisa.' : 'Los pájaros irán un poco más despacio la próxima vez.'}</p>` : ''}
     <dl class="stats">
       <div class="stat"><dt>Aciertos a la primera</dt><dd>${ok} / ${result.answers.length}</dd></div>
@@ -687,12 +875,12 @@ function screenResults(level, result, arg, prevBest) {
       <div class="stat"><dt>Puntos</dt><dd>${result.score.toLocaleString('es-ES')}${record ? '<small>récord</small>' : ''}</dd></div>
     </dl>
     ${missed.length ? '<div class="group"><h2>Para repasar</h2><div class="missed-slot"></div></div>' : ''}
-    ${!result.help && result.stars && next ? `<div class="teaser">
+    ${!result.help && !level.daily && result.stars && next ? `<div class="teaser">
       <span class="muted small">${next.world !== level.world ? `Nuevo mundo: ${esc(WORLDS.find((w) => w.id === next.world).title)}` : `Lo siguiente: ${levelTag(next)}`}</span>
       <b>${esc(next.lesson?.title ?? next.title)}</b></div>` : ''}
     <div class="actions">
       ${result.help ? `<button class="btn primary" type="button" data-go="play/${arg}">Jugar sin ayuda</button>` : ''}
-      ${!result.help && result.stars && next ? `<button class="btn primary" type="button" data-go="level/${next.id}">Siguiente nivel</button>` : ''}
+      ${!result.help && !level.daily && result.stars && next ? `<button class="btn primary" type="button" data-go="level/${next.id}">Siguiente nivel</button>` : ''}
       <button class="btn ${result.help || (result.stars && next) ? '' : 'primary'}" type="button" data-act="again">Jugar otra vez</button>
       <button class="btn ghost" type="button" data-go="${back}">${level.id ? 'Volver al camino' : 'Volver'}</button>
     </div>`);
@@ -718,15 +906,42 @@ function screenResults(level, result, arg, prevBest) {
     });
     root.querySelector('.missed-slot').replaceWith(staff);
   }
-  if (result.stars) setTimeout(() => audio.sfx('star'), 300);
+  if (result.stars) {
+    setTimeout(() => audio.sfx('star'), 300);
+    confetti(root, result.stars);
+  }
+}
+
+// Plumas y notas que caen al superar un nivel (no se ven con «reducir movimiento»).
+function confetti(root, stars) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  box.setAttribute('aria-hidden', 'true');
+  const glyphs = ['♪', '♫', '♩', '✦'];
+  for (let i = 0; i < 14 + stars * 8; i++) {
+    const piece = document.createElement('i');
+    piece.textContent = i % 3 ? glyphs[i % glyphs.length] : '';
+    piece.className = i % 3 ? 'note' : 'feather';
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.animationDelay = `${Math.random() * 0.8}s`;
+    piece.style.animationDuration = `${2.2 + Math.random() * 1.6}s`;
+    piece.style.setProperty('--x', `${(Math.random() - 0.5) * 120}px`);
+    piece.style.setProperty('--r', `${(Math.random() - 0.5) * 540}deg`);
+    box.appendChild(piece);
+  }
+  root.appendChild(box);
+  later(() => box.remove(), 4500);
 }
 
 // ---------- repaso ----------
 
-const CLEF_NAMES = { treble: 'Clave de sol', bass: 'Clave de fa', alto: 'Clave de do en 3.ª', tenor: 'Clave de do en 4.ª' };
+const CLEF_NAMES = { treble: 'Clave de sol', bass: 'Clave de fa' }; // solo piano
 
 function screenReview() {
   const p = store.activeProfile();
+  const theoryDue = theoryDueCount(p.cards);
+  const hasTheory = Object.keys(p.cards).some((k) => !k.startsWith('treble:') && !k.startsWith('bass:'));
   const clefs = Object.keys(CLEF_NAMES).filter((c) => Object.keys(p.cards).some((k) => k.startsWith(`${c}:`)));
   const root = render(`
     ${topbar('Repaso')}
@@ -737,7 +952,9 @@ function screenReview() {
           return `<button class="btn ${due ? 'primary' : ''} continue" type="button" data-go="play/review-${c}">
             <span>${CLEF_NAMES[c]}<small>${due ? `${due} ${due === 1 ? 'nota toca' : 'notas tocan'} hoy` : 'Nada pendiente: repaso de las más flojas'}</small></span>${ICONS.arrow}</button>`;
         }).join('')
-      : '<p class="empty">Juega algunos niveles del camino y aquí aparecerán las notas que te toca repasar.</p>'}`);
+      : '<p class="empty">Juega algunos niveles del camino y aquí aparecerán las notas que te toca repasar.</p>'}
+    ${hasTheory ? `<button class="btn ${theoryDue ? 'primary' : ''} continue" type="button" data-go="play/review-teoria">
+      <span>Teoría<small>${theoryDue ? `${theoryDue} ${theoryDue === 1 ? 'concepto toca' : 'conceptos tocan'} hoy` : 'Nada pendiente: repaso de lo más flojo'}</small></span>${ICONS.arrow}</button>` : ''}`);
   bindNav(root);
 }
 
@@ -756,7 +973,7 @@ function screenPractice() {
   const root = render(`
     ${topbar('Práctica libre')}
     <div class="group"><span class="lbl">Clave</span>
-      ${seg('clef', [['treble', 'Sol'], ['bass', 'Fa'], ['grand', 'Sol y Fa'], ['alto', 'Do 3.ª'], ['tenor', 'Do 4.ª']], cfg.clef)}</div>
+      ${seg('clef', [['treble', 'Sol'], ['bass', 'Fa'], ['grand', 'Sol y Fa']], cfg.clef)}</div>
     <div class="group"><span class="lbl">Líneas adicionales</span>
       ${seg('ledgers', [[0, 'Ninguna'], [1, '1'], [2, '2'], [3, '3'], [4, '4']], cfg.ledgers)}</div>
     <div class="group"><span class="lbl">Armadura</span><select id="key">${keyOptions.join('')}</select></div>
@@ -1101,8 +1318,11 @@ function screenSettings() {
     ${toggle('haptics', 'Vibrar al fallar', 'Solo en móviles que lo admiten.')}
     ${navigator.requestMIDIAccess ? `${toggle('midi', 'Responder con un teclado MIDI', 'Conecta un teclado por USB o Bluetooth. Funciona en Chrome y Edge, también en Android.')}
     ${toggle('midiExact', 'Con MIDI, tocar en la octava escrita')}` : ''}
-    <div class="group"><span class="lbl">Tema</span>
-      ${seg('theme', [['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Noche']], s.theme)}</div>
+    ${toggle('music', 'Música de fondo en los menús')}
+    <h2 class="section-title">Accesibilidad</h2>
+    ${toggle('largeText', 'Letra más grande')}
+    ${toggle('highContrast', 'Contraste alto', 'Fondos lisos y líneas más marcadas.')}
+    <p class="muted small">Los temas de colores están en «Tu pájaro».</p>
     <h2 class="section-title">Jugar en varios dispositivos</h2>
     <div class="sync-slot"></div>
     <h2 class="section-title">Jugador</h2>
@@ -1135,6 +1355,9 @@ function screenSettings() {
       const v = b.getAttribute('aria-checked') !== 'true';
       b.setAttribute('aria-checked', String(v));
       store.updateSettings({ [b.dataset.k]: v });
+      if (b.dataset.k === 'music' || b.dataset.k === 'sound') {
+        if (v && store.settings().music && store.settings().sound) { audio.configure(store.settings()); audio.startAmbient(); } else audio.stopAmbient();
+      }
       applyTheme();
     }),
   );
@@ -1199,6 +1422,9 @@ function route() {
   timers = [];
   applyTheme();
   const [name, arg, extra] = location.hash.replace(/^#\/?/, '').split('/');
+  // Música de fondo en los menús; en las partidas se apaga para oír bien las notas.
+  if (name === 'play' || !store.settings().music) audio.stopAmbient();
+  else if (audioReady) audio.startAmbient();
   if (!store.activeProfile() || name === 'players') return screenPlayers();
   switch (name) {
     case 'map': return screenMap(arg);
@@ -1209,6 +1435,8 @@ function route() {
       return screenPlay(arg, extra === 'ayuda');
     }
     case 'chart': return screenChart(arg);
+    case 'tienda': return screenShop(arg);
+    case 'logros': return screenAchievements();
     case 'help': return screenHelp();
     case 'review': return screenReview();
     case 'practice': return screenPractice();
@@ -1226,7 +1454,13 @@ sync.start(() => {
   const name = location.hash.replace(/^#\/?/, '').split('/')[0];
   if (['', 'home', 'map', 'progress', 'review', 'players'].includes(name)) route();
 });
-window.addEventListener('pointerdown', () => audio.unlock(), { once: true });
+let audioReady = false;
+window.addEventListener('pointerdown', () => {
+  audio.unlock();
+  audioReady = true;
+  const name = location.hash.replace(/^#\/?/, '').split('/')[0];
+  if (name !== 'play' && store.settings().music) audio.startAmbient();
+}, { once: true });
 route();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

@@ -973,3 +973,35 @@ export function reviewLevel(keys, clef) {
     target: 1.8,
   });
 }
+
+// Repaso de teoría: preguntas de los niveles de teoría ya superados cuyo concepto toca repasar
+// (cajas de Leitner vencidas) o que más se fallan. Todo en cartel, cada una con sus botones.
+export function theoryReviewLevel(cards, progress, ctx = {}, size = 20, now = Date.now()) {
+  const defs = LEVELS.filter((l) => l.kind && !['mixed', 'melody'].includes(l.kind) && !l.twoStep && (progress[l.id]?.stars ?? 0) > 0);
+  const items = defs.flatMap((d) => buildTheoryLevel(d, ctx).pool).filter((it) => it.options?.length);
+  const acc = (c) => (c?.recent?.length ? c.recent.filter(Boolean).length / c.recent.length : 1);
+  const scored = items
+    .map((it) => ({ it, c: cards[it.key] }))
+    .filter(({ c }) => c?.seen)
+    .sort((a, b) => (a.c.due <= now) - (b.c.due <= now) || acc(a.c) - acc(b.c))
+    .reverse();
+  const seen = new Set();
+  const pool = [];
+  for (const { it } of scored.sort((a, b) => (b.c.due <= now) - (a.c.due <= now) || acc(a.c) - acc(b.c))) {
+    if (pool.length >= size) break;
+    if (seen.has(it.key) && pool.length < size / 2) continue;
+    seen.add(it.key);
+    pool.push({ ...it, present: 'board' });
+  }
+  if (pool.length < 4) return null;
+  return {
+    id: null, world: 'review', title: 'Repaso de teoría', theory: true, kind: 'mixed', answer: null, clefs: ['treble'], key: 0,
+    segments: null, pool, newKeys: [], lesson: { title: 'Repaso de teoría', text: [], example: '', samples: [], show: [], bands: [] },
+    present: 'board', pad: { type: 'choices', options: [] }, mode: 'calm', count: Math.min(20, Math.max(10, pool.length)),
+    warmup: 0, passAcc: 0.9, exactOctave: false, spawnMs: 4000, travelMs: 8000, targetMs: 4000,
+  };
+}
+
+export function theoryDueCount(cards, now = Date.now()) {
+  return Object.entries(cards).filter(([k, c]) => !k.startsWith('treble:') && !k.startsWith('bass:') && c.seen && c.due <= now).length;
+}

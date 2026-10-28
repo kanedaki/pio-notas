@@ -147,6 +147,7 @@ export class Game {
           <svg class="board" role="img" aria-label="Pregunta" preserveAspectRatio="xMidYMid meet"></svg>
           <p class="banner" hidden></p>
           <div class="explain" role="status" hidden></div>
+          <p class="sr-only" aria-live="assertive"></p>
         </div>
         <div class="pad"></div>
         <div class="overlay pause-menu" hidden>
@@ -165,6 +166,7 @@ export class Game {
     this.promptEl = q('.prompt');
     this.banner = q('.banner');
     this.explainEl = q('.explain');
+    this.liveEl = q('.sr-only');
     this.meterEl = q('.meter');
     this.progressEl = q('.progress');
     this.scoreEl = q('.score b');
@@ -370,6 +372,12 @@ export class Game {
     this.bannerTimer = setTimeout(() => { this.banner.hidden = true; }, ms);
   }
 
+  // Aviso para lectores de pantalla (acierto o respuesta correcta).
+  announce(text) {
+    this.liveEl.textContent = '';
+    requestAnimationFrame(() => { this.liveEl.textContent = text; });
+  }
+
   // Explicación tras un fallo en teoría: la respuesta y la regla, hasta la siguiente pregunta.
   explain(item) {
     this.explainEl.innerHTML = `<b>${item.label ?? item.answer}</b><span>${item.explain}</span>`;
@@ -544,6 +552,7 @@ export class Game {
 
     if (this.check(b, ans)) {
       if (node) this.pad.flash(node, 'ok');
+      this.announce(`Correcto: ${this.itemName(b)}`);
       this.playItem(b.item);
       if (counts && !b.failed) {
         this.answers.push({ key: b.item.key, correct: true, ms, idx: this.pool.indexOf(b.item) });
@@ -554,6 +563,7 @@ export class Game {
     } else {
       if (node) this.pad.flash(node, 'bad');
       audio.sfx('wrong');
+      this.announce(`No. Era ${this.itemName(b)}`);
       if (this.settings.haptics) navigator.vibrate?.(40);
       this.lockedUntil = this.clock + 350;
       this.shake(b.inner);

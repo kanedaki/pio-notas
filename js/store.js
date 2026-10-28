@@ -20,7 +20,8 @@ export const DEFAULT_SETTINGS = {
   pace: 1, // multiplicador de tiempo: 1.8 (5-7 años), 1.5, 1.25, 1 (adulto), 0.85 rápido
   autoPace: true, // ajustar el ritmo solo para rondar el 85 % de aciertos
   haptics: true,
-  theme: 'auto',
+  theme: 'auto', // (antiguo) claro/oscuro; ahora manda el tema equipado
+  skin: 'auto', // tema de color: 'auto' (Amanecer o Noche según el sistema) o uno de look.js
   largeText: false,
   highContrast: false,
   midi: false, // teclado MIDI conectado (Chrome/Edge)
@@ -193,8 +194,9 @@ export function recordSession(session) {
   const ok = session.answers.filter((a) => a.correct).length;
   p.history = [
     ...p.history,
-    { date: now, levelId: session.levelId, mode: session.mode, n, ok, score: session.score, stars: session.stars, seeds: session.seeds ?? 0 },
+    { date: now, levelId: session.levelId, mode: session.mode, n, ok, score: session.score, stars: session.stars, seeds: session.seeds ?? 0, fast: !!session.fast },
   ].slice(-5000);
+  if (session.daily && session.stars > 0) p.daily = { ...(p.daily ?? {}), [today]: now };
   if (p.saved && !p.saved.cleared && p.saved.arg === session.arg) p.saved = { at: now, cleared: true };
   derive(p);
   write();

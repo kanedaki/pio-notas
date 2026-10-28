@@ -96,3 +96,71 @@ export function sfx(kind) {
     voice(2349, t + 0.04, { dur: 0.45, gain: 0.05 });
   }
 }
+
+// ---------- música de fondo de los menús ----------
+// Acordes suaves (Do maj7, La m7, Fa maj7, Sol 6) que cambian cada 4 s y algún canto de pájaro lejano.
+// Se para durante las partidas para no tapar las notas.
+
+const CHORDS = [[60, 64, 67, 71], [57, 60, 64, 67], [53, 57, 60, 64], [55, 59, 62, 64]];
+let ambient = null;
+
+export function startAmbient() {
+  if (!enabled || ambient || !ensure()) return;
+  const bus = ctx.createGain();
+  bus.gain.value = 0;
+  bus.gain.linearRampToValueAtTime(1, ctx.currentTime + 2);
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 1100;
+  bus.connect(lp).connect(master);
+  let i = 0;
+  const pad = () => {
+    const t = ctx.currentTime;
+    for (const m of CHORDS[i % CHORDS.length]) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = frequency(m);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.022, t + 1.4);
+      g.gain.linearRampToValueAtTime(0, t + 4.4);
+      osc.connect(g).connect(bus);
+      osc.start(t);
+      osc.stop(t + 4.6);
+    }
+    i++;
+  };
+  const chirp = () => {
+    const t = ctx.currentTime;
+    const base = 2200 + Math.random() * 1400;
+    for (let k = 0; k < 3; k++) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.frequency.setValueAtTime(base, t + k * 0.12);
+      osc.frequency.exponentialRampToValueAtTime(base * 1.35, t + k * 0.12 + 0.07);
+      g.gain.setValueAtTime(0, t + k * 0.12);
+      g.gain.linearRampToValueAtTime(0.012, t + k * 0.12 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + k * 0.12 + 0.09);
+      osc.connect(g).connect(bus);
+      osc.start(t + k * 0.12);
+      osc.stop(t + k * 0.12 + 0.1);
+    }
+  };
+  pad();
+  const padTimer = setInterval(pad, 4000);
+  let chirpTimer;
+  const nextChirp = () => { chirpTimer = setTimeout(() => { chirp(); nextChirp(); }, 6000 + Math.random() * 7000); };
+  nextChirp();
+  ambient = { bus, stop: () => { clearInterval(padTimer); clearTimeout(chirpTimer); } };
+}
+
+export function stopAmbient() {
+  if (!ambient) return;
+  const a = ambient;
+  ambient = null;
+  a.stop();
+  a.bus.gain.cancelScheduledValues(ctx.currentTime);
+  a.bus.gain.setValueAtTime(a.bus.gain.value, ctx.currentTime);
+  a.bus.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+  setTimeout(() => a.bus.disconnect(), 800);
+}
