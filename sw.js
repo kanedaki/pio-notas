@@ -1,9 +1,9 @@
 // Caché para jugar sin conexión. Cambia VERSION al publicar archivos nuevos.
-const VERSION = 'pio-v2';
+const VERSION = 'pio-v3';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/game.js', 'js/staff.js', 'js/input.js', 'js/music.js', 'js/glyphs.js',
-  'js/curriculum.js', 'js/adaptive.js', 'js/store.js', 'js/audio.js',
+  'js/curriculum.js', 'js/adaptive.js', 'js/store.js', 'js/audio.js', 'js/merge.js', 'js/sync.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png',
 ];
 

@@ -8,6 +8,7 @@ import {
 } from './curriculum.js';
 import { Game } from './game.js';
 import { createPad } from './input.js';
+import * as sync from './sync.js';
 import { StaffSystem, makeBird, el } from './staff.js';
 import { GLYPHS } from './glyphs.js';
 import {
@@ -177,7 +178,12 @@ function screenPlayers() {
         <div class="swatches">${store.BIRD_COLORS.map((c) => `<button type="button" class="swatch" style="--c:${c}" data-c="${c}" aria-label="Color ${c}" aria-pressed="${c === color}"></button>`).join('')}</div>
       </div>
       <button class="btn primary" type="submit">Crear jugador</button>
-    </form>`);
+    </form>
+    <div class="group">
+      <h2>¿Ya juegas en otro móvil o tablet?</h2>
+      <div class="sync-slot"></div>
+    </div>`);
+  mountSync(root.querySelector('.sync-slot'), () => go('home'));
   bindNav(root);
   root.querySelectorAll('.player').forEach((b) =>
     b.addEventListener('click', () => {
@@ -206,6 +212,7 @@ function screenPlayers() {
 
 function screenHome() {
   const p = store.activeProfile();
+  const saved = store.savedGame();
   const today = store.notesToday();
   const next = nextToPlay(p.progress);
   const world = WORLDS.find((w) => w.id === next.world);
@@ -222,7 +229,10 @@ function screenHome() {
       <p class="tagline">Lee las notas antes de que los pájaros lleguen a la clave.</p>
       <div class="hero-slot"></div>
     </section>
-    <button class="btn primary continue" type="button" data-go="level/${next.id}">
+    ${saved ? `<button class="btn primary continue resume" type="button" data-go="play/${saved.arg}/seguir">
+      <span>Continuar partida<small>${esc(saved.title)} · ${saved.state.resolved} de ${saved.count}</small></span>${ICONS.arrow}
+    </button>` : ''}
+    <button class="btn ${saved ? '' : 'primary'} continue" type="button" data-go="level/${next.id}">
       <span>${p.progress[next.id] ? 'Seguir' : idx === 1 ? 'Empezar' : 'Seguir'}: nivel ${idx}<small>${esc(world.title)} · ${esc(next.title)}</small></span>${ICONS.arrow}
     </button>
     <nav class="menu-grid" aria-label="Menú">
@@ -347,7 +357,8 @@ function screenIntro(id) {
       </ul>
     </section>
     <div class="actions">
-      <button class="btn primary play-btn" type="button" data-go="play/${id}">Jugar</button>
+      ${store.savedGame()?.arg === id ? `<button class="btn primary" type="button" data-go="play/${id}/seguir">Seguir donde lo dejaste (${store.savedGame().state.resolved} de ${level.count})</button>` : ''}
+      <button class="btn ${store.savedGame()?.arg === id ? '' : 'primary'} play-btn" type="button" data-go="play/${id}">${store.savedGame()?.arg === id ? 'Empezar de nuevo' : 'Jugar'}</button>
       <button class="btn" type="button" data-go="play/${id}/ayuda">Practicar con ayuda</button>
     </div>
     <p class="muted small">Con ayuda se ilumina la respuesta correcta y no se ganan estrellas.</p>`);
@@ -495,12 +506,17 @@ function levelFor(arg) {
   return buildLevel(def);
 }
 
-function screenPlay(arg, help = false) {
+function levelLabel(level) {
+  return level.id ? `Nivel ${LEVELS.findIndex((l) => l.id === level.id) + 1}: ${level.title}` : level.title;
+}
+
+function screenPlay(arg, help = false, resume = null) {
   const level = levelFor(arg);
   if (!level) return go('home');
   const p = store.activeProfile();
   const s = store.settings();
   audio.unlock();
+  if (!resume && !help) store.clearSaved();
   const prevBest = level.id ? p.progress[level.id]?.best ?? 0 : 0;
   app.innerHTML = '<div class="play-root"></div>';
   const root = app.firstElementChild;
@@ -509,12 +525,14 @@ function screenPlay(arg, help = false) {
     settings: s,
     cards: p.cards,
     help,
+    resume,
+    onSave: (state) => store.saveGame({ arg, title: levelLabel(level), count: level.count, state }),
     onEnd: (result) => {
       if (!result.help) store.recordSession({
+        arg,
         noCards: !!level.answer,
         levelId: level.id,
         mode: level.world,
-        completed: result.completed,
         stars: result.stars,
         score: result.score,
         answers: result.answers,
@@ -528,6 +546,7 @@ function screenPlay(arg, help = false) {
       if (how === 'restart') {
         game.destroy();
         game = null;
+        store.clearSaved();
         screenPlay(arg, help);
       } else {
         go(level.id ? 'map' : level.world === 'review' ? 'review' : 'practice');
@@ -878,6 +897,76 @@ function topConfusion(card, naming) {
   return displayName({ step, alt }, naming);
 }
 
+// Sincronización con código familiar. onJoined: qué hacer tras unirse a un código.
+function mountSync(slot, onJoined = null) {
+  const code = store.syncCode();
+  const ago = (t) => {
+    if (!t) return 'todavía no';
+    const min = Math.round((Date.now() - t) / 60000);
+    return min < 1 ? 'hace un momento' : min < 60 ? `hace ${min} min` : new Date(t).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+  slot.innerHTML = code
+    ? `<div class="sync-box">
+        <p>Este dispositivo guarda el progreso en la nube con el código</p>
+        <p class="sync-code" aria-label="Código de sincronización">${code}</p>
+        <p class="muted small">Escríbelo en el otro dispositivo (Ajustes → Jugar en varios dispositivos). Última sincronización: ${ago(store.lastSync())}.</p>
+        <div class="actions two">
+          <button class="btn" type="button" data-sync="copy">Copiar código</button>
+          <button class="btn" type="button" data-sync="now">Sincronizar ahora</button>
+        </div>
+        <button class="btn ghost" type="button" data-sync="stop">Dejar de sincronizar aquí</button>
+      </div>`
+    : `<div class="sync-box">
+        <p class="muted">Con un código, el progreso y las partidas a medias se guardan en la nube y puedes seguir en otro dispositivo.</p>
+        ${onJoined ? '' : '<button class="btn primary" type="button" data-sync="create">Crear un código para este dispositivo</button>'}
+        <form class="field sync-join" autocomplete="off">
+          <label for="sync-input">${onJoined ? 'Escribe el código que ves en el otro dispositivo' : '¿Ya tienes un código de otro dispositivo?'}</label>
+          <input id="sync-input" type="text" inputmode="text" autocapitalize="characters" placeholder="7KQ4-M2XD-9PRA" maxlength="16">
+          <button class="btn" type="submit">Usar este código</button>
+        </form>
+      </div>`;
+  slot.insertAdjacentHTML('beforeend', '<p class="sync-msg small" role="status"></p>');
+  const msg = slot.querySelector('.sync-msg');
+  const say = (text, bad = false) => {
+    msg.textContent = text;
+    msg.classList.toggle('bad-msg', bad);
+  };
+  const refresh = () => mountSync(slot, onJoined);
+  slot.querySelector('.sync-join')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    say('Conectando…');
+    try {
+      await sync.joinCode(slot.querySelector('#sync-input').value);
+      if (onJoined) onJoined();
+      else refresh();
+    } catch (err) {
+      say(err.message, true);
+    }
+  });
+  slot.addEventListener('click', async (e) => {
+    const act = e.target.closest('[data-sync]')?.dataset.sync;
+    if (!act) return;
+    try {
+      if (act === 'create') {
+        say('Creando código…');
+        await sync.createCode();
+        refresh();
+      } else if (act === 'copy') {
+        await navigator.clipboard.writeText(code).then(() => say('Código copiado.'), () => say(code));
+      } else if (act === 'now') {
+        say('Sincronizando…');
+        await sync.syncNow();
+        refresh();
+      } else if (act === 'stop') {
+        sync.stop();
+        refresh();
+      }
+    } catch (err) {
+      say(`No se ha podido sincronizar: ${err.message}`, true);
+    }
+  });
+}
+
 // ---------- ajustes ----------
 
 function screenSettings() {
@@ -908,6 +997,8 @@ function screenSettings() {
     ${toggle('midiExact', 'Con MIDI, tocar en la octava escrita')}` : ''}
     <div class="group"><span class="lbl">Tema</span>
       ${seg('theme', [['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Noche']], s.theme)}</div>
+    <h2 class="section-title">Jugar en varios dispositivos</h2>
+    <div class="sync-slot"></div>
     <h2 class="section-title">Jugador</h2>
     <button class="btn" type="button" data-go="players">Cambiar de jugador</button>
     <button class="btn" type="button" data-act="export">Guardar copia de ${esc(p.name)}</button>
@@ -947,6 +1038,7 @@ function screenSettings() {
     audio.unlock();
     audio.playMidi(67);
   });
+  mountSync(root.querySelector('.sync-slot'));
   const confirm = root.querySelector('.confirm');
   root.addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
@@ -1005,7 +1097,11 @@ function route() {
   switch (name) {
     case 'map': return screenMap();
     case 'level': return screenIntro(arg);
-    case 'play': return screenPlay(arg, extra === 'ayuda');
+    case 'play': {
+      const saved = store.savedGame();
+      if (extra === 'seguir') return saved?.arg === arg ? screenPlay(arg, false, saved.state) : go('home');
+      return screenPlay(arg, extra === 'ayuda');
+    }
     case 'chart': return screenChart(arg);
     case 'help': return screenHelp();
     case 'review': return screenReview();
@@ -1020,6 +1116,10 @@ function route() {
 if (new URLSearchParams(location.search).has('dev')) window.__pio = { get game() { return game; } };
 
 window.addEventListener('hashchange', route);
+sync.start(() => {
+  const name = location.hash.replace(/^#\/?/, '').split('/')[0];
+  if (['', 'home', 'map', 'progress', 'review', 'players'].includes(name)) route();
+});
 window.addEventListener('pointerdown', () => audio.unlock(), { once: true });
 route();
 

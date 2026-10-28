@@ -28,7 +28,7 @@ export function starsFor({ accuracy, medianMs }, targetMs, passAcc = 0.9) {
 }
 
 export class Game {
-  constructor(root, level, { settings, cards, help = false, onEnd, onExit }) {
+  constructor(root, level, { settings, cards, help = false, resume = null, onSave = () => {}, onEnd, onExit }) {
     this.root = root;
     this.level = level;
     this.settings = settings;
@@ -36,6 +36,7 @@ export class Game {
     this.help = help;
     this.onEnd = onEnd;
     this.onExit = onExit;
+    this.onSave = onSave;
     this.pace = settings.pace * (settings.input === 'piano' && !level.answer ? PIANO_FACTOR : 1);
     this.targetMs = level.targetMs * this.pace;
     this.score = 0;
@@ -59,8 +60,42 @@ export class Game {
     this.seg = 0;
     this.segLen = Math.ceil(level.count / this.segments.length);
     this.useSegment(0);
+    if (resume) this.restore(resume);
     this.build();
     this.listenMidi();
+  }
+
+  // Estado mínimo para continuar otro día (o en otro dispositivo): los pájaros que estaban en
+  // pantalla no se guardan; al volver salen pájaros nuevos hasta completar la ronda.
+  snapshot() {
+    return {
+      answers: this.answers,
+      score: this.score,
+      streak: this.streak,
+      bestStreak: this.bestStreak,
+      resolved: this.resolved,
+      seg: this.seg,
+      introduced: [...this.introduced],
+    };
+  }
+
+  restore(s) {
+    Object.assign(this, {
+      answers: s.answers ?? [],
+      score: s.score ?? 0,
+      streak: s.streak ?? 0,
+      bestStreak: s.bestStreak ?? 0,
+      resolved: Math.min(s.resolved ?? 0, this.level.count),
+    });
+    this.spawned = this.resolved;
+    this.introduced = new Set(s.introduced ?? []);
+    this.toldTimed = this.spawned >= this.level.warmup;
+    if (s.seg) this.useSegment(Math.min(s.seg, this.segments.length - 1));
+    this.resumed = true;
+  }
+
+  save() {
+    if (!this.ended && !this.help && this.phase === 'main') this.onSave(this.snapshot());
   }
 
   useSegment(i) {
@@ -99,7 +134,7 @@ export class Game {
             <h2>Pausa</h2>
             <button class="btn primary" data-act="resume" type="button">Seguir</button>
             <button class="btn" data-act="restart" type="button">Empezar de nuevo</button>
-            <button class="btn ghost" data-act="exit" type="button">Salir del nivel</button>
+            <button class="btn ghost" data-act="exit" type="button">Guardar y salir</button>
           </div>
         </div>
       </div>`;
@@ -141,7 +176,11 @@ export class Game {
       if (act === 'exit') this.onExit('exit');
     });
 
-    this.onVisibility = () => document.hidden && this.pause();
+    this.onVisibility = () => {
+      if (!document.hidden) return;
+      this.pause();
+      this.save();
+    };
     document.addEventListener('visibilitychange', this.onVisibility);
     this.onResize = () => this.layout();
     window.addEventListener('resize', this.onResize);
@@ -189,6 +228,8 @@ export class Game {
   }
 
   start() {
+    if (this.resumed) this.say(`Sigues donde lo dejaste: ${this.resolved} de ${this.level.count}.`);
+    if (this.resumed && this.resolved >= this.level.count) this.startRescue();
     this.last = performance.now();
     this.raf = requestAnimationFrame((t) => this.frame(t));
   }
@@ -467,6 +508,7 @@ export class Game {
     if (this.phase === 'main') {
       this.resolved++;
       if (this.resolved >= this.level.count) this.startRescue();
+      else this.save();
     } else if (!this.rescueQueue.length && !this.birds.length) {
       this.finish();
     }
@@ -524,6 +566,7 @@ export class Game {
     if (this.ended || this.paused) return;
     this.paused = true;
     this.pauseMenu.hidden = false;
+    this.save();
   }
 
   resume() {
