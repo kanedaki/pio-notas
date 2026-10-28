@@ -19,7 +19,7 @@ servidor estático mínimo (Node ≥ 18) que solo publica los archivos del juego
 
 ## Publicar
 
-En producción en Railway (proyecto `pio-notas`, servicio `pio`): https://pio-production-75a8.up.railway.app
+En producción en Railway (proyecto `pio-notas`, servicio `pio`): https://pios.up.railway.app
 
 Cada push a `main` en [github.com/kanedaki/pio-notas](https://github.com/kanedaki/pio-notas) despliega
 solo en Railway; GitHub Actions pasa los tests en cada push y pull request. Para desplegar sin hacer
