@@ -5,6 +5,7 @@ import * as audio from './audio.js';
 import {
   WORLDS, LEVELS, levelById, buildLevel, practiceLevel, reviewLevel, isUnlocked, nextLevel, rangeFor,
   LANDMARKS, CHART_TIPS, nextToPlay, theoryReviewLevel, theoryDueCount,
+  buildPlacementLevel, placementAvailable, PLACEMENT_PASS, PLACEMENT_SIZE,
 } from './curriculum.js';
 import { Game } from './game.js';
 import { drawBoard } from './boards.js';
@@ -230,7 +231,7 @@ function birdSays(p, next, toConsolidate) {
   const h = new Date().getHours();
   const hello = h < 13 ? '¡Buenos días' : h < 20 ? '¡Buenas tardes' : '¡Buenas noches';
   const lines = [];
-  if (!Object.keys(p.progress).length) lines.push('Soy tu pájaro. Te enseño a leer notas: empezamos por mirar si me poso en una línea o en un espacio.');
+  if (!Object.keys(p.progress).length) lines.push('Soy tu pájaro. Te enseño a leer notas y teoría. Si ya sabes algo, en el Camino hay pruebas de nivel para saltarte lo que dominas.');
   else if (toConsolidate.length) lines.push(`Repite «${toConsolidate[0].title}» para que no se te olvide.`);
   else lines.push(`Hoy toca ${levelTag(next).toLowerCase()}: ${next.title}.`);
   if (p.streak.count >= 2) lines.push(`Llevas ${p.streak.count} días seguidos.`);
@@ -450,6 +451,7 @@ function screenMap(tab) {
       return `<section class="world" id="w-${w.id}">
         <div class="world-head">${clefIcon(w.clefIcon)}<div><h2>${esc(w.title)}</h2>${w.optional ? '<span class="opt">Opcional</span>' : ''}</div><span class="stars-count">${got} / ${w.levels.length * 3} ★</span></div>
         <p>${esc(w.description)}</p>
+        ${placementAvailable(w, p.progress) ? `<button class="placement" type="button" data-go="play/prueba-${w.id}"><b>¿Ya lo sabes? Prueba de nivel</b><span>${PLACEMENT_SIZE} preguntas: con ${PLACEMENT_PASS} aciertos, todo el mundo queda superado.</span></button>` : ''}
         <div class="wire-row">
           ${w.levels.map((l) => {
             n++;
@@ -747,6 +749,10 @@ function levelFor(arg) {
   }
   if (arg === 'practice') return practiceLevel(store.settings().practice ?? PRACTICE_DEFAULTS);
   if (arg === 'review-teoria') return theoryReviewLevel(p.cards, p.progress, { naming: store.settings().naming });
+  if (arg?.startsWith('prueba-')) {
+    const world = WORLDS.find((w) => w.id === arg.slice(7));
+    return world && placementAvailable(world, p.progress) ? buildPlacementLevel(world.id, { naming: store.settings().naming }) : null;
+  }
   if (arg?.startsWith('review-')) {
     const clef = arg.slice(7);
     const keys = reviewKeys(p.cards, clef);
@@ -779,8 +785,14 @@ function screenPlay(arg, help = false, resume = null) {
     resume,
     onSave: (state) => store.saveGame({ arg, title: levelLabel(level), count: level.count, state }),
     onEnd: (result) => {
-      result.paceChange = result.help ? 0 : adjustPace(level, result);
-      result.seeds = result.help ? 0 : seedsFor(store.activeProfile(), { levelId: level.id, answers: result.answers, stars: result.stars, daily: level.daily });
+      if (level.placement && !result.help) {
+        result.correct = result.answers.filter((a) => a.correct).length;
+        result.placementPassed = result.correct >= PLACEMENT_PASS;
+        result.stars = result.placementPassed ? 1 : 0;
+        if (result.placementPassed) store.applyPlacement(level.placementLevels);
+      }
+      result.paceChange = result.help || level.placement ? 0 : adjustPace(level, result);
+      result.seeds = result.help ? 0 : seedsFor(store.activeProfile(), { levelId: level.id, answers: result.answers, stars: result.stars, daily: level.daily }) + (result.placementPassed ? 20 : 0);
       if (!result.help) store.recordSession({
         arg,
         seeds: result.seeds,
@@ -788,7 +800,7 @@ function screenPlay(arg, help = false, resume = null) {
         fast: result.stars === 3 && result.medianMs !== null && result.medianMs < 1000,
         noCards: !!level.answer,
         levelId: level.id,
-        mode: level.world,
+        mode: level.placement ? 'placement' : level.world,
         stars: result.stars,
         score: result.score,
         answers: result.answers,
@@ -845,7 +857,38 @@ function nextStarTip(result, level) {
   return `Para la tercera estrella: acierta el ${pct(top)} y responde en ${secs(result.targetMs)} de media.`;
 }
 
+// Resultado de una prueba de nivel: mundo superado o recomendación de por dónde empezar.
+function screenPlacementResults(level, result) {
+  const p = store.activeProfile();
+  const world = WORLDS.find((w) => w.id === level.placement);
+  const firstDef = world.levels.find((l) => !(p.progress[l.id]?.stars > 0));
+  const first = firstDef ? levelById(firstDef.id) : null;
+  const next = nextToPlay(p.progress);
+  const root = render(`
+    <div class="result-head">
+      <div class="big-stars">${[1, 2, 3].map((i) => star(result.placementPassed && i === 2)).join('')}</div>
+      <h1>${result.placementPassed ? '¡Mundo superado!' : 'Aún no'}</h1>
+      <p class="muted">${result.placementPassed
+        ? `Has acertado ${result.correct} de ${PLACEMENT_SIZE}: todos los niveles de «${esc(world.title)}» quedan abiertos con una estrella. Juégalos cuando quieras para ganar más.`
+        : `Has acertado ${result.correct} de ${PLACEMENT_SIZE} (hacen falta ${PLACEMENT_PASS}). Mejor empezar por el primer nivel: así repasas lo que te falta.`}</p>
+    </div>
+    ${result.seeds ? `<p class="seed-gain">${ICONS.seed}+${result.seeds} de alpiste</p>` : ''}
+    ${(result.unlocked ?? []).slice(0, 3).map((a) => `<div class="unlocked"><span class="medal">${ICONS.trophy}</span><div><b>¡Logro! ${esc(a.name)}</b><span class="muted small">${esc(a.text)} +${a.reward} de alpiste</span></div></div>`).join('')}
+    <div class="actions">
+      ${result.placementPassed
+        ? `<button class="btn primary" type="button" data-go="level/${next.id}">Seguir: ${esc(levelTag(next).toLowerCase())}</button>`
+        : first ? `<button class="btn primary" type="button" data-go="level/${first.id}">Empezar por ${esc(levelTag(first).toLowerCase())}</button>` : ''}
+      <button class="btn ghost" type="button" data-go="map/${world.area ?? 'lectura'}">Volver al camino</button>
+    </div>`);
+  bindNav(root);
+  if (result.placementPassed) {
+    setTimeout(() => audio.sfx('star'), 300);
+    confetti(root, 2);
+  }
+}
+
 function screenResults(level, result, arg, prevBest) {
+  if (level.placement && !result.help) return screenPlacementResults(level, result);
   if (result.help) result.stars = 0;
   const s = store.settings();
   const next = level.id ? nextLevel(level.id, store.activeProfile().progress) : null;
@@ -1188,6 +1231,8 @@ function screenHelp() {
         <li>${miniStars(3)}<span>Acertar el 95 % y responder rápido: ahí la lectura ya es casi automática.</span></li>
       </ul>
       <p>Las estrellas de arriba se apagan durante la partida cuando los fallos ya no permiten conseguirlas. No hay vidas: siempre terminas la ronda.</p></div>
+    <div class="group"><h2>Pruebas de nivel</h2>
+      <p>Si ya sabes lo que enseña un mundo, haz su prueba de nivel en el Camino: ${PLACEMENT_SIZE} preguntas mezcladas. Con ${PLACEMENT_PASS} aciertos, todos sus niveles quedan superados con una estrella y puedes pasar al siguiente.</p></div>
     <div class="group"><h2>Repaso</h2>
       <p>Pío recuerda cada nota que has leído. Las que fallas vuelven pronto y las que dominas, cada vez más espaciadas. Cinco minutos de repaso al día rinden más que una hora a la semana.</p></div>
     <div class="group"><h2>Cómo leer más rápido</h2>

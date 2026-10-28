@@ -1005,3 +1005,95 @@ export function theoryReviewLevel(cards, progress, ctx = {}, size = 20, now = Da
 export function theoryDueCount(cards, now = Date.now()) {
   return Object.entries(cards).filter(([k, c]) => !k.startsWith('treble:') && !k.startsWith('bass:') && c.seen && c.due <= now).length;
 }
+
+// ---------- prueba de nivel por mundo ----------
+// 8 preguntas mezcladas, sobre todo de los últimos niveles del mundo. Con 7 aciertos o más, todos sus
+// niveles quedan superados con una estrella (docs/investigacion-teoria.md § 2.2).
+
+export const PLACEMENT_SIZE = 8;
+export const PLACEMENT_PASS = 7;
+
+export function placementAvailable(world, progress) {
+  if (world.levels.length < 2) return false;
+  return isUnlocked(world.levels[0].id, progress) && world.levels.some((l) => !(progress[l.id]?.stars > 0));
+}
+
+// Reparte n huecos entre los niveles, empezando por el último (el más difícil) y dando la vuelta.
+function roundRobin(groups, n, rnd = Math.random) {
+  const bags = groups.map((g) => [...g].sort(() => rnd() - 0.5));
+  const picked = [];
+  const keys = new Set();
+  for (let round = 0; picked.length < n && round < 50; round++) {
+    for (let i = bags.length - 1; i >= 0 && picked.length < n; i--) {
+      const idx = bags[i].findIndex((it) => !keys.has(it.key));
+      const it = idx >= 0 ? bags[i].splice(idx, 1)[0] : bags[i].shift();
+      if (!it) continue;
+      keys.add(it.key);
+      picked.push(it);
+    }
+  }
+  return picked;
+}
+
+export function buildPlacementLevel(worldId, ctx = {}, rnd = Math.random) {
+  const world = WORLDS.find((w) => w.id === worldId);
+  if (!world) return null;
+  const defs = LEVELS.filter((l) => l.world === worldId);
+  const base = {
+    id: null,
+    world: worldId,
+    title: `Prueba de nivel: ${world.title}`,
+    placement: worldId,
+    placementLevels: defs.map((d) => d.id),
+    answer: null,
+    newKeys: [],
+    lesson: { title: '', text: [], example: '', samples: [], show: [], bands: [] },
+    mode: 'calm',
+    count: PLACEMENT_SIZE,
+    warmup: 0,
+    passAcc: PLACEMENT_PASS / PLACEMENT_SIZE,
+    fixedOrder: true,
+    noRescue: true,
+    exactOctave: false,
+    spawnMs: 3000,
+    travelMs: 6000,
+    targetMs: 3000,
+  };
+
+  if (world.area === 'teoria') {
+    // Las melodías y la respuesta en dos toques necesitan otro teclado: se quedan fuera de la prueba.
+    const groups = defs
+      .filter((d) => !['melody'].includes(d.kind) && !d.twoStep)
+      .map((d) => buildTheoryLevel(d, ctx).pool.filter((it) => it.options?.length).map((it) => ({ ...it, present: 'board' })))
+      .filter((g) => g.length);
+    const pool = roundRobin(groups, PLACEMENT_SIZE, rnd);
+    return { ...base, theory: true, kind: 'mixed', clefs: ['treble'], key: 0, segments: null, pool, present: 'board', pad: { type: 'choices', options: [] } };
+  }
+
+  // Lectura: notas de cada nivel; si el mundo cambia de clave usa el gran pentagrama, y si cambia de
+  // armadura la prueba va por tramos (como los niveles de armaduras).
+  const levels = defs.filter((d) => !d.answer).map((d) => buildLevel(d, ctx));
+  if (!levels.length) return null;
+  const clefs = [...new Set(levels.flatMap((l) => l.clefs))].sort((a, b) => (a === 'treble' ? -1 : b === 'treble' ? 1 : 0));
+  const byKey = new Map();
+  for (const l of levels) {
+    for (const seg of l.segments ?? [{ key: l.key, pool: l.pool }]) {
+      if (!byKey.has(seg.key)) byKey.set(seg.key, []);
+      byKey.get(seg.key).push(seg.pool);
+    }
+  }
+  let keys = [...byKey.keys()];
+  const nSeg = keys.length >= 4 ? 4 : keys.length >= 2 ? 2 : 1;
+  keys = keys.slice(-nSeg);
+  const per = PLACEMENT_SIZE / nSeg;
+  const segments = keys.map((k) => ({ key: k, pool: roundRobin(byKey.get(k), per, rnd), newKeys: [] }));
+  return {
+    ...base,
+    clefs,
+    key: segments[0].key,
+    segments: segments.length > 1 ? segments : null,
+    pool: segments[0].pool,
+    present: 'wire',
+    pad: { type: 'notes' },
+  };
+}

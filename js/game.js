@@ -117,6 +117,12 @@ export class Game {
     this.pool = s.pool;
     this.newKeys = s.newKeys;
     this.system = new StaffSystem(this.level.clefs, s.key);
+    if (this.level.fixedOrder) {
+      // Prueba de nivel: las preguntas elegidas, una vez cada una y en orden.
+      let i = 0;
+      this.selector = { next: () => s.pool[i++ % s.pool.length], reinforce() {} };
+      return;
+    }
     this.selector = makeSelector(s.pool, this.cards, {
       count: this.segLen,
       targetMs: this.targetMs,
@@ -694,7 +700,7 @@ export class Game {
       .map((a) => (a.idx >= 0 ? this.pool[a.idx] : all.find((p) => p.key === a.key)))
       .filter((p) => p && !p.parts)
       .slice(0, 8);
-    if (this.help || !missed.length || this.segments.length > 1) return this.finish();
+    if (this.help || this.level.noRescue || !missed.length || this.segments.length > 1) return this.finish();
     this.phase = 'rescue';
     this.rescueQueue = missed;
     this.rescueAt = this.clock + 1500;

@@ -70,3 +70,18 @@ test('práctica y repaso', () => {
 test('cada mundo tiene niveles', () => {
   for (const w of WORLDS) assert.ok(w.levels.length, w.id);
 });
+
+test('prueba de nivel: 8 preguntas en cada mundo con más de un nivel', async () => {
+  const { WORLDS, buildPlacementLevel, placementAvailable } = await import('../js/curriculum.js');
+  for (const w of WORLDS.filter((x) => x.levels.length > 1)) {
+    const lvl = buildPlacementLevel(w.id, { naming: 'solfege' });
+    const items = lvl.segments ? lvl.segments.flatMap((s) => s.pool) : lvl.pool;
+    assert.equal(items.length, 8, `${w.id}: ${items.length} preguntas`);
+    if (lvl.theory) for (const it of items) assert.ok(it.options.some((o) => o.value === it.answer), `${w.id}: ${it.key}`);
+    else for (const it of items) assert.ok(it.note, `${w.id}: pregunta sin nota`);
+    if (lvl.segments) assert.ok(lvl.segments.every((s) => s.pool.length === 8 / lvl.segments.length), w.id);
+  }
+  assert.ok(!placementAvailable(WORLDS.find((w) => w.id === 'inicio'), {}), 'un mundo de un nivel no tiene prueba');
+  assert.ok(placementAvailable(WORLDS.find((w) => w.id === 'sol1'), { p1: { stars: 1 } }));
+  assert.ok(!placementAvailable(WORLDS.find((w) => w.id === 'fa1'), { p1: { stars: 1 } }), 'cerrado hasta abrir su primer nivel');
+});

@@ -210,6 +210,18 @@ export function notesToday() {
   return p.history.filter((h) => dayKey(new Date(h.date)) === t).reduce((s, h) => s + h.n, 0);
 }
 
+// Prueba de nivel aprobada: todos los niveles del mundo quedan superados con al menos una estrella.
+export function applyPlacement(levelIds) {
+  const p = activeProfile();
+  if (!p) return;
+  const today = dayKey();
+  for (const id of levelIds) {
+    const prev = p.progress[id] ?? { stars: 0, best: 0, plays: 0 };
+    p.progress[id] = { ...prev, stars: Math.max(1, prev.stars), passedDay: prev.passedDay ?? today, tested: true };
+  }
+  write();
+}
+
 // ---------- partida a medias ----------
 
 export function saveGame(snapshot) {

@@ -18,6 +18,7 @@ function mergeProgress(a = {}, b = {}) {
     const passed = [x.passedDay, y.passedDay].filter(Boolean).sort();
     if (passed.length) out[id].passedDay = passed[0];
     if (x.consolidated || y.consolidated) out[id].consolidated = true;
+    if (x.tested || y.tested) out[id].tested = true;
   }
   return out;
 }
