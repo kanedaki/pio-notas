@@ -21,9 +21,9 @@ servidor estático mínimo (Node ≥ 18) que solo publica los archivos del juego
 
 En producción en Railway (proyecto `pio-notas`, servicio `pio`): https://pio-production-75a8.up.railway.app
 
-```sh
-railway up --service pio --detach   # sube la carpeta y despliega (ignora lo listado en .railwayignore)
-```
+Cada push a `main` en [github.com/kanedaki/pio-notas](https://github.com/kanedaki/pio-notas) despliega
+solo en Railway; GitHub Actions pasa los tests en cada push y pull request. Para desplegar sin hacer
+commit (por ejemplo, probar algo): `railway up --service pio --detach`.
 
 Al cambiar archivos del juego, sube `VERSION` en `sw.js` para que los móviles que lo tienen instalado
 descarguen la versión nueva.
