@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pío: galería de notación</title>
+<!-- Abrir con `python3 -m http.server` desde la raíz del repositorio: /dev/notacion.html -->
+<style>
+  :root { --paper: #edeff5; --card: #ffffff; --wire: #2b3570; --muted: #6b7290; --line: #d5d9e6; }
+  body { margin: 0; padding: 16px; background: var(--paper); color: var(--wire); font: 13px/1.35 system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 18px 0 8px; }
+  p.note { margin: 0 0 8px; color: var(--muted); }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px 4px; }
+  figcaption { color: var(--muted); font-size: 11px; text-align: center; }
+  svg { display: block; overflow: visible; }
+  .notation { fill: var(--wire); }
+  .guide { fill: none; stroke: #e0465a; stroke-width: 0.3; }
+</style></head>
+<body>
+<h1>Galería de notación</h1>
+<p class="note">js/notation.js con glifos Bravura. 1 espacio = 10 unidades; aquí 1 unidad = 1,6 px.</p>
+<main id="gallery"></main>
+<script type="module">
+  import { el } from '../js/staff.js';
+  import {
+    drawStaff, drawNote, drawRest, drawBeamGroup, drawTie, drawTimeSig, drawBarline,
+    drawHairpin, drawSymbol, drawMeasure,
+  } from '../js/notation.js';
+
+  const S = 1.6; // px por unidad
+  const main = document.getElementById('gallery');
+  let row;
+
+  function section(title, note) {
+    const h = document.createElement('h2');
+    h.textContent = title;
+    main.appendChild(h);
+    if (note) {
+      const p = document.createElement('p');
+      p.className = 'note';
+      p.textContent = note;
+      main.appendChild(p);
+    }
+    row = document.createElement('div');
+    row.className = 'row';
+    main.appendChild(row);
+  }
+
+  // Tarjeta con un SVG: w, h y y0 en unidades (y0 = coordenada superior visible).
+  function card(caption, w, draw, { h = 90, y0 = -30 } = {}) {
+    const fig = document.createElement('figure');
+    const svg = el('svg', { viewBox: `0 ${y0} ${w} ${h}`, width: w * S, height: h * S });
+    draw(svg);
+    fig.appendChild(svg);
+    const cap = document.createElement('figcaption');
+    cap.textContent = caption;
+    fig.appendChild(cap);
+    row.appendChild(fig);
+  }
+
+  const DURS = [[1, 'redonda'], [2, 'blanca'], [4, 'negra'], [8, 'corchea'], [16, 'semicorchea'], [32, 'fusa']];
+
+  // ---- Figuras ----
+  section('Figuras', 'Plica arriba (Mi, Fa) y abajo (Do, Re agudos); con puntillo y doble puntillo. Puntillo de nota en línea: al espacio de encima.');
+  for (const [dur, name] of DURS) {
+    card(name, 110, (svg) => {
+      drawStaff(svg, { x: 0, top: 0, width: 110 });
+      drawNote(svg, { x: 14, top: 0, pos: 0, dur });
+      drawNote(svg, { x: 40, top: 0, pos: 1, dur, dots: 1 });
+      drawNote(svg, { x: 68, top: 0, pos: 7, dur });
+      drawNote(svg, { x: 90, top: 0, pos: 6, dur, dots: 2 });
+    });
+  }
+  card('líneas adicionales', 150, (svg) => {
+    drawStaff(svg, { x: 0, top: 0, width: 150 });
+    drawNote(svg, { x: 14, top: 0, pos: -2, dur: 4 });
+    drawNote(svg, { x: 34, top: 0, pos: -5, dur: 8 });
+    drawNote(svg, { x: 56, top: 0, pos: -6, dur: 2, dots: 1 });
+    drawNote(svg, { x: 82, top: 0, pos: 10, dur: 4 });
+    drawNote(svg, { x: 104, top: 0, pos: 13, dur: 16 });
+    drawNote(svg, { x: 128, top: 0, pos: 12, dur: 1 });
+  }, { h: 120, y0: -45 });
+
+  // ---- Silencios ----
+  section('Silencios', 'Redonda colgada de la 4.ª línea, blanca sobre la 3.ª, el resto centrados; con puntillo.');
+  card('redonda, blanca, negra, corchea, semicorchea, fusa', 190, (svg) => {
+    drawStaff(svg, { x: 0, top: 0, width: 190 });
+    [1, 2, 4, 8, 16, 32].forEach((dur, i) => drawRest(svg, { x: 16 + i * 30, top: 0, dur }));
+  });
+  card('con puntillo', 190, (svg) => {
+    drawStaff(svg, { x: 0, top: 0, width: 190 });
+    [1, 2, 4, 8, 16, 32].forEach((dur, i) => drawRest(svg, { x: 14 + i * 30, top: 0, dur, dots: 1 }));
+  });
+  card('en línea única', 190, (svg) => {
+    drawStaff(svg, { x: 0, top: 0, width: 190, lines: 1 });
+    [1, 2, 4, 8, 16, 32].forEach((dur, i) => drawRest(svg, { x: 16 + i * 30, top: 0, dur, lines: 1 }));
+  });
+
+  // ---- Grupos con barra ----
+  section('Grupos con barra', 'Barras de 0,5 espacios separadas 0,25; inclinación suave hacia la dirección del grupo.');
+  const beam = (caption, notes, w, opts = {}) => card(caption, w, (svg) => {
+    drawStaff(svg, { x: 0, top: 0, width: w, lines: opts.lines ?? 5 });
+    drawBeamGroup(svg, { x: 14, top: 0, notes, spacing: opts.spacing ?? 22, stem: opts.stem });
+  }, opts.box);
+  beam('2 corcheas', [{ pos: 2, dur: 8 }, { pos: 4, dur: 8 }], 60);
+  beam('2 corcheas (abajo)', [{ pos: 7, dur: 8 }, { pos: 5, dur: 8 }], 60);
+  beam('4 semicorcheas', [{ pos: 1, dur: 16 }, { pos: 2, dur: 16 }, { pos: 3, dur: 16 }, { pos: 4, dur: 16 }], 92, { spacing: 20 });
+  beam('4 semicorcheas (abajo)', [{ pos: 9, dur: 16 }, { pos: 8, dur: 16 }, { pos: 7, dur: 16 }, { pos: 6, dur: 16 }], 92, { spacing: 20 });
+  beam('corchea + 2 semicorcheas', [{ pos: 2, dur: 8 }, { pos: 3, dur: 16 }, { pos: 4, dur: 16 }], 80);
+  beam('2 semicorcheas + corchea', [{ pos: 6, dur: 16 }, { pos: 5, dur: 16 }, { pos: 4, dur: 8 }], 80);
+  beam('corchea con puntillo + semicorchea', [{ pos: 3, dur: 8, dots: 1 }, { pos: 3, dur: 16 }], 70, { spacing: 28 });
+  beam('semicorchea + corchea + semicorchea', [{ pos: 2, dur: 16 }, { pos: 2, dur: 8 }, { pos: 2, dur: 16 }], 80);
+  beam('3 corcheas (6/8)', [{ pos: 1, dur: 8 }, { pos: 3, dur: 8 }, { pos: 5, dur: 8 }], 80);
+  beam('fusas', [{ pos: 3, dur: 32 }, { pos: 4, dur: 32 }, { pos: 5, dur: 32 }, { pos: 6, dur: 32 }], 92, { spacing: 20 });
+  beam('grupo cóncavo: plano', [{ pos: 2, dur: 8 }, { pos: 5, dur: 8 }, { pos: 3, dur: 8 }], 80);
+  beam('por debajo: plicas a la 3.ª línea', [{ pos: -4, dur: 8 }, { pos: -3, dur: 8 }], 60, { box: { h: 110, y0: -30 } });
+  beam('ritmo en línea única', [{ pos: 4, dur: 8 }, { pos: 4, dur: 16 }, { pos: 4, dur: 16 }], 80, { lines: 1, stem: 'up' });
+
+  // ---- Ligaduras ----
+  section('Ligaduras', 'Media luna rellena: 0,1 espacios en las puntas y 0,22 en el centro; al lado contrario de las plicas.');
+  card('negra ⁀ negra, blanca ⁀ corchea', 170, (svg) => {
+    drawStaff(svg, { x: 0, top: 0, width: 170 });
+    drawNote(svg, { x: 14, top: 0, pos: 2, dur: 4 });
+    drawNote(svg, { x: 46, top: 0, pos: 2, dur: 4 });
+    drawTie(svg, { x1: 17.5, x2: 42.5, y: 36 });
+    drawNote(svg, { x: 90, top: 0, pos: 6, dur: 2 });
+    drawNote(svg, { x: 146, top: 0, pos: 6, dur: 8 });
+    drawTie(svg, { x1: 93.5, x2: 142.5, y: 4, above: true });
+  });
+  card('ligaduras en compás (plicas mezcladas: encima)', 230, (svg) => {
+    drawMeasure(svg, { x: 0, top: 0, timeSig: [4, 4], width: 230, items: [
+      { dur: 2, pos: 3, tie: true }, { dur: 8, pos: 3 }, { dur: 8, pos: 5 }, { dur: 8, pos: 7, tie: true }, { dur: 8, pos: 7 },
+    ] });
+  });
+
+  // ---- Cifras de compás ----
+  section('Cifras de compás');
+  for (const ts of [[2, 4], [3, 4], [4, 4], [6, 8], [9, 8], [12, 8], ['common'], ['cut']]) {
+    card(ts.length === 2 ? `${ts[0]}/${ts[1]}` : ts[0] === 'common' ? 'C' : 'C partida', 44, (svg) => {
+      drawStaff(svg, { x: 0, top: 0, width: 44 });
+      const opts = ts.length === 2 ? { num: ts[0], den: ts[1] } : { symbol: ts[0] };
+      const box = el('g', {}, svg);
+      const w = drawTimeSig(box, { x: 0, top: 0, ...opts });
+      box.setAttribute('transform', `translate(${(44 - w) / 2} 0)`);
+    });
+  }
+
+  // ---- Compases ----
+  section('Compases', 'Maquetados con layoutMeasure: espacio proporcional a la duración, barras por pulso.');
+  const meas = (caption, opts, w, box) => card(caption, w, (svg) => {
+    const res = drawMeasure(svg, { x: 0, top: 0, width: w, ...opts });
+    const t = el('text', { x: w, y: 62, 'text-anchor': 'end', 'font-size': 7, fill: '#6b7290' }, svg);
+    t.textContent = `${res.totalBeats} / ${res.expectedBeats}`;
+  }, box);
+  meas('2/4 con clave de Sol', { clef: 'treble', timeSig: [2, 4], items: [
+    { dur: 8, pos: 2 }, { dur: 8, pos: 3 }, { dur: 16, pos: 4 }, { dur: 16, pos: 5 }, { dur: 16, pos: 6 }, { dur: 16, pos: 7 },
+  ] }, 230);
+  meas('3/4 con silencios', { clef: 'treble', timeSig: [3, 4], items: [
+    { dur: 4, pos: 4 }, { type: 'rest', dur: 8 }, { dur: 8, pos: 6 }, { dur: 4, pos: 5, dots: 0 },
+  ] }, 210);
+  meas('4/4 con clave de Fa', { clef: 'bass', timeSig: [4, 4], barline: 'final', items: [
+    { dur: 4, pos: 2, dots: 1 }, { dur: 8, pos: 3 }, { dur: 2, pos: 4 },
+  ] }, 200);
+  meas('6/8', { clef: 'treble', timeSig: [6, 8], items: [
+    { dur: 8, pos: 1 }, { dur: 8, pos: 2 }, { dur: 8, pos: 3 }, { dur: 4, pos: 4 }, { dur: 8, pos: 5 },
+  ] }, 210);
+  meas('9/8', { timeSig: [9, 8], items: [
+    { dur: 4, pos: 4, dots: 1 }, { dur: 8, pos: 5 }, { dur: 8, pos: 6 }, { dur: 8, pos: 7 }, { dur: 4, pos: 6 }, { dur: 8, pos: 5 },
+  ] }, 220);
+  meas('12/8', { timeSig: [12, 8], items: [
+    { dur: 8, pos: 4 }, { dur: 8, pos: 4 }, { dur: 8, pos: 4 }, { dur: 4, pos: 5, dots: 1 },
+    { dur: 8, pos: 6 }, { dur: 16, pos: 5 }, { dur: 16, pos: 4 }, { dur: 8, pos: 3 }, { dur: 4, pos: 2, dots: 1 },
+  ] }, 280);
+  meas('incompleto (faltan tiempos)', { clef: 'treble', timeSig: [4, 4], items: [{ dur: 4, pos: 4 }, { dur: 8, pos: 5 }, { dur: 8, pos: 6 }] }, 210);
+  meas('silencio de compás', { timeSig: [3, 4], items: [{ type: 'rest', dur: 1 }] }, 120);
+  // varios compases seguidos: cada uno empieza donde acabó el anterior
+  const line = (caption, timeSig, bars, w) => card(caption, w, (svg) => {
+    let x = 0;
+    let tieIn = null;
+    bars.forEach((items, i) => {
+      const res = drawMeasure(svg, { x, top: 0, lines: 1, timeSig, showTimeSig: i === 0, items, tieIn, barline: i === bars.length - 1 ? 'final' : 'single' });
+      x += res.width;
+      tieIn = res.openTie;
+    });
+  });
+  line('línea única 2/4, dos compases', [2, 4], [
+    [{ dur: 4 }, { dur: 8 }, { dur: 8 }],
+    [{ dur: 16 }, { dur: 16 }, { dur: 8 }, { type: 'rest', dur: 4 }],
+  ], 250);
+  line('línea única 3/4 con ligadura entre compases', [3, 4], [
+    [{ dur: 4 }, { dur: 8 }, { dur: 8 }, { dur: 4, tie: true }],
+    [{ dur: 4, dots: 1 }, { dur: 8 }, { dur: 4 }],
+  ], 290);
+  meas('línea única 6/8', { lines: 1, timeSig: [6, 8], items: [
+    { dur: 8 }, { dur: 8 }, { dur: 8 }, { dur: 8, dots: 1 }, { dur: 16 }, { dur: 8 },
+  ] }, 200);
+  meas('línea única incompleta', { lines: 1, timeSig: [4, 4], items: [{ dur: 2 }, { dur: 4 }] }, 180);
+  meas('línea única: redonda y silencios', { lines: 1, timeSig: [4, 4], showTimeSig: false, items: [{ type: 'rest', dur: 2 }, { type: 'rest', dur: 4 }, { dur: 4 }] }, 150);
+
+  // ---- Dinámicas y reguladores ----
+  section('Dinámicas y reguladores');
+  // fila de glifos separados según su ancho; la guía roja marca la x pedida (centro)
+  const symbolRow = (svg, names, y, gap = 10) => {
+    let x = 4;
+    for (const name of names) {
+      const probe = drawSymbol(svg, name, { x: 0, y });
+      const w = probe.right - probe.left;
+      probe.g.remove();
+      const cx = x + w / 2;
+      drawSymbol(svg, name, { x: cx, y });
+      el('rect', { x: cx - 0.15, y: y - 32, width: 0.3, height: 40, class: 'guide' }, svg);
+      x += w + gap;
+    }
+  };
+  card('pp p mp mf f ff fp sf sfz', 330, (svg) => {
+    symbolRow(svg, ['dynamicPP', 'dynamicPiano', 'dynamicMP', 'dynamicMF', 'dynamicForte', 'dynamicFF',
+      'dynamicFortePiano', 'dynamicSforzando1', 'dynamicSforzato'], 28);
+  }, { h: 44, y0: 0 });
+  card('cresc. y dim.', 200, (svg) => {
+    drawSymbol(svg, 'dynamicPiano', { x: 10, y: 20 });
+    drawHairpin(svg, { x1: 22, x2: 92, y: 17, kind: 'cresc' });
+    drawSymbol(svg, 'dynamicForte', { x: 102, y: 20 });
+    drawHairpin(svg, { x1: 114, x2: 184, y: 17, kind: 'dim' });
+    drawSymbol(svg, 'dynamicPiano', { x: 194, y: 20 });
+  }, { h: 40, y0: 0 });
+
+  // ---- Articulaciones ----
+  section('Articulaciones y calderón', 'drawSymbol centra el glifo en x; aquí sobre la cabeza (plica abajo) o bajo ella (plica arriba).');
+  card('acento, picado, tenuto, picado-ligado, calderón', 190, (svg) => {
+    drawStaff(svg, { x: 0, top: 0, width: 190 });
+    const arts = ['articAccentAbove', 'articStaccatoAbove', 'articTenutoAbove', 'articTenutoStaccatoAbove'];
+    arts.forEach((name, i) => {
+      const x = 16 + i * 34;
+      drawNote(svg, { x, top: 0, pos: 7, dur: 4 });
+      drawSymbol(svg, name, { x, y: -9 });
+    });
+    drawNote(svg, { x: 166, top: 0, pos: 3, dur: 2 });
+    drawSymbol(svg, 'fermataAbove', { x: 166, y: -15 });
+  }, { h: 100, y0: -35 });
+
+  // ---- Barras y signos ----
+  section('Barras de compás y signos de repetición');
+  card('sencilla, doble, final', 160, (svg) => {
+    drawStaff(svg, { x: 0, top: 0, width: 150 });
+    drawBarline(svg, { x: 40, top: 0, kind: 'single' });
+    drawBarline(svg, { x: 90, top: 0, kind: 'double' });
+    drawBarline(svg, { x: 150, top: 0, kind: 'final' });
+  }, { h: 60, y0: -10 });
+  card('repetición: inicio y fin', 160, (svg) => {
+    drawStaff(svg, { x: 0, top: 0, width: 150 });
+    drawBarline(svg, { x: 10, top: 0, kind: 'repeatLeft' });
+    drawNote(svg, { x: 50, top: 0, pos: 4, dur: 2 });
+    drawNote(svg, { x: 90, top: 0, pos: 5, dur: 2 });
+    drawBarline(svg, { x: 150, top: 0, kind: 'repeatRight' });
+  }, { h: 60, y0: -10 });
+  card('repetición en línea única', 160, (svg) => {
+    drawMeasure(svg, { x: 0, top: 0, lines: 1, timeSig: [2, 4], width: 150, barline: 'repeatRight', items: [{ dur: 4 }, { dur: 8 }, { dur: 8 }] });
+  }, { h: 60, y0: -10 });
+  card('segno, coda, Ped., *, 8va, tresillo, 𝄪, 𝄫', 290, (svg) => {
+    symbolRow(svg, ['segno', 'coda', 'keyboardPedalPed', 'keyboardPedalUp', 'ottavaAlta', 'tuplet3',
+      'accidentalDoubleSharp', 'accidentalDoubleFlat'], 34, 12);
+  }, { h: 50, y0: -2 });
+</script>
+</body></html>

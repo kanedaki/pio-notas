@@ -121,3 +121,89 @@ export function isCorrect(target, answer) {
   if ('pc' in answer) return pitchClass(target) === answer.pc;
   return answer.step === target.step && answer.alt === target.alt;
 }
+
+// ---------- teoría: intervalos, tonalidades y acordes ----------
+
+export const semitones = (a, b) => midi(b) - midi(a);
+
+// Número del intervalo (2.ª, 3.ª…) contando las dos notas, sin importar el sentido.
+export const intervalNumber = (a, b) => Math.abs(diatonic(b) - diatonic(a)) + 1;
+
+const PERFECT = { 1: 0, 4: 5, 5: 7, 8: 12 };
+const MAJOR = { 2: 2, 3: 4, 6: 9, 7: 11 };
+
+// Calidad del intervalo: 'J' justa, 'M' mayor, 'm' menor, 'A' aumentada, 'd' disminuida (null si es rara).
+export function intervalQuality(a, b) {
+  const [lo, hi] = diatonic(a) <= diatonic(b) ? [a, b] : [b, a];
+  let n = intervalNumber(lo, hi);
+  let semis = semitones(lo, hi);
+  while (n > 8) { n -= 7; semis -= 12; }
+  if (n in PERFECT) {
+    const d = semis - PERFECT[n];
+    return { 0: 'J', 1: 'A', '-1': 'd' }[d] ?? null;
+  }
+  const d = semis - MAJOR[n];
+  return { 0: 'M', '-1': 'm', 1: 'A', '-2': 'd' }[d] ?? null;
+}
+
+export const QUALITY_NAMES = { J: 'justa', M: 'mayor', m: 'menor', A: 'aumentada', d: 'disminuida' };
+
+// «tono y medio», «2 tonos y medio»…
+export function tonesText(semis) {
+  const t = Math.floor(semis / 2);
+  const half = semis % 2 === 1;
+  if (t === 0) return half ? 'un semitono' : 'nada';
+  const whole = t === 1 ? 'un tono' : `${t} tonos`;
+  return half ? `${t === 1 ? 'tono' : whole} y medio` : whole;
+}
+
+// Tónica (en la octava 4) de la tonalidad mayor y de su relativa menor para una armadura.
+export function majorTonic(fifths) {
+  const step = (((4 * fifths) % 7) + 7) % 7;
+  return { step, alt: keyAlters(fifths)[step], oct: 4 };
+}
+
+export function minorTonic(fifths) {
+  const step = (majorTonic(fifths).step + 5) % 7;
+  return { step, alt: keyAlters(fifths)[step], oct: 4 };
+}
+
+export function minorKeyName(fifths, naming = 'solfege') {
+  const t = minorTonic(fifths);
+  return naming === 'german' ? `${displayName(t, naming).toLowerCase()}-Moll` : `${displayName(t, naming)} menor`;
+}
+
+// Notas de la escala mayor de una armadura empezando en la tónica (octava indicada).
+export function majorScale(fifths, oct = 4) {
+  const t = majorTonic(fifths);
+  const alters = keyAlters(fifths);
+  return Array.from({ length: 8 }, (_, i) => {
+    const n = fromDiatonic(t.step + oct * 7 + i);
+    return { ...n, alt: alters[n.step] };
+  });
+}
+
+// Calidad de una tríada en estado fundamental: 'M', 'm', 'dim', 'aum'.
+export function triadQuality(root, third, fifth) {
+  const a = semitones(root, third);
+  const b = semitones(third, fifth);
+  if (a === 4 && b === 3) return 'M';
+  if (a === 3 && b === 4) return 'm';
+  if (a === 3 && b === 3) return 'dim';
+  if (a === 4 && b === 4) return 'aum';
+  return null;
+}
+
+// Valor de una figura en negras: 1 redonda = 4, blanca 2, negra 1, corchea ½…; el puntillo suma la mitad.
+export function beats(dur, dots = 0) {
+  const base = 4 / dur;
+  return base * (dots === 2 ? 1.75 : dots === 1 ? 1.5 : 1);
+}
+
+// 1.5 → '1½', 0.75 → '¾', 0.25 → '¼'
+export function beatsText(x) {
+  const whole = Math.floor(x + 1e-9);
+  const frac = Math.round((x - whole) * 4);
+  const f = ['', '¼', '½', '¾'][frac];
+  return whole ? `${whole}${f}` : f || '0';
+}

@@ -99,3 +99,29 @@ Diferencias con la tabla del informe:
 | Tablas de notas de cada clave | «Tablas de notas» con notas guía resaltadas y sonido |
 | Envío al profesor (portal) | Resumen para compartir y copia de seguridad en archivo |
 | — (críticas de profesores) | Teclas grandes, nombre tras el error, lecciones, repaso espaciado, más líneas adicionales |
+
+## Versión 2: teoría, piano exacto, ritmo automático y sincronización
+
+**Teoría musical** (docs/investigacion-teoria.md): 12 mundos y 50 niveles de Lenguaje Musical de
+enseñanzas elementales (figuras y silencios, compás, expresión, sube/baja y melodías, intervalos con su
+número y su calidad, tonos y semitonos, grados, acordes, armaduras y escalas, compases compuestos y un gran
+repaso). El camino tiene dos pestañas (Leer notas y Teoría) y «Seguir» recorre una ruta que intercala las
+dos según el § 5.2 de la investigación. Los tipos de pregunta están en [js/theory.js](../js/theory.js):
+
+- En el cable caminan las notas, las parejas (intervalos, tono/semitono, sube/baja), las tríadas y las
+  figuras (sobre una sola línea, como en la lectura rítmica del conservatorio).
+- En cartel, sin prisa: compases, ritmos con nombre, símbolos y términos, armaduras, escalas, grados y
+  melodías (se leen nota a nota con el teclado de notas).
+- Cada pregunta trae su explicación: tras un fallo aparece la respuesta y la regla aplicada a esa pregunta
+  (feedback explicativo, mejor que solo la respuesta según la investigación).
+- Los botones salen de los errores típicos (p. ej. «Sol♯ mayor» como trampa del último sostenido).
+
+**Piano con octava exacta** desde el gran pentagrama (o siempre/nunca, en Ajustes): teclado de varias
+octavas que se desplaza, centrado en el Do central; el objetivo de tiempo se multiplica por 1,3.
+
+**Consolidación y ritmo automático:** un nivel queda consolidado al superarlo en dos días distintos (sello
+verde en el mapa). Con «Ritmo automático», tras cada partida con tiempo el ritmo se acelera un 7 % si
+acierta ≥ 92 % muy por debajo del objetivo y se frena un 8 % si baja del 80 %.
+
+**Guardar y sincronizar:** la partida se guarda sola y se puede continuar otro día o en otro dispositivo
+con un código familiar (sin cuentas). El servidor fusiona los datos sin perder nada (js/merge.js).

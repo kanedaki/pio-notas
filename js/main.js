@@ -7,6 +7,7 @@ import {
   LANDMARKS, CHART_TIPS, nextToPlay,
 } from './curriculum.js';
 import { Game } from './game.js';
+import { drawBoard } from './boards.js';
 import { createPad } from './input.js';
 import * as sync from './sync.js';
 import { StaffSystem, makeBird, el } from './staff.js';
@@ -30,7 +31,11 @@ const go = (path) => { location.hash = `#/${path}`; };
 const secs = (ms) => (ms === null ? '—' : `${(ms / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1, minimumFractionDigits: 1 })} s`);
 const pct = (x) => `${Math.round(x * 100)} %`;
 // Objetivo de tiempo según el ritmo elegido (edad) y el modo de respuesta.
-const effTarget = (level, s) => level.targetMs * s.pace * (s.input === 'piano' && !level.answer ? 1.2 : 1);
+const effTarget = (level, s) => {
+  const piano = s.input === 'piano' && level.pad?.type === 'notes' && !level.answer;
+  const exact = piano && (s.pianoOctave === 'exact' || (s.pianoOctave !== 'any' && level.exactOctave));
+  return level.targetMs * s.pace * (piano ? (exact ? 1.3 : 1.2) : 1);
+};
 
 // ---------- piezas de interfaz ----------
 
@@ -216,8 +221,8 @@ function screenHome() {
   const today = store.notesToday();
   const next = nextToPlay(p.progress);
   const world = WORLDS.find((w) => w.id === next.world);
-  const due = ['treble', 'bass', 'alto', 'tenor'].reduce((s, c) => s + dueCount(p.cards, c), 0);
-  const idx = LEVELS.indexOf(next) + 1;
+  const due = ['treble', 'bass'].reduce((s, c) => s + dueCount(p.cards, c), 0);
+  const first = !Object.keys(p.progress).length;
   const root = render(`
     <header class="home-head">
       <button class="who" type="button" data-go="players" aria-label="Cambiar de jugador">${avatar(p.color)}<span>${esc(p.name)}</span></button>
@@ -233,7 +238,7 @@ function screenHome() {
       <span>Continuar partida<small>${esc(saved.title)} · ${saved.state.resolved} de ${saved.count}</small></span>${ICONS.arrow}
     </button>` : ''}
     <button class="btn ${saved ? '' : 'primary'} continue" type="button" data-go="level/${next.id}">
-      <span>${p.progress[next.id] ? 'Seguir' : idx === 1 ? 'Empezar' : 'Seguir'}: nivel ${idx}<small>${esc(world.title)} · ${esc(next.title)}</small></span>${ICONS.arrow}
+      <span>${first ? 'Empezar' : 'Seguir'}: ${levelTag(next).toLowerCase()}<small>${esc(world.title)} · ${esc(next.title)}</small></span>${ICONS.arrow}
     </button>
     <nav class="menu-grid" aria-label="Menú">
       <button class="menu-item" type="button" data-go="map"><b>Camino</b><span>Todos los niveles, de la clave de sol a las armaduras.</span></button>
@@ -267,14 +272,19 @@ function screenHome() {
 
 // ---------- camino ----------
 
-function screenMap() {
+// Mapa con dos pestañas: leer notas y teoría. Se abre en la del nivel que toca.
+function screenMap(tab) {
   const p = store.activeProfile();
+  const s = store.settings();
   const next = nextToPlay(p.progress);
+  const area = ['lectura', 'teoria'].includes(tab) ? tab : next.area ?? 'lectura';
+  const worlds = WORLDS.filter((w) => (w.area ?? 'lectura') === area);
   let n = 0;
   const root = render(`
     ${topbar('Camino')}
-    ${WORLDS.map((w) => {
-      const got = w.levels.reduce((s, l) => s + (p.progress[l.id]?.stars ?? 0), 0);
+    ${seg('area', [['lectura', 'Leer notas'], ['teoria', 'Teoría']], area)}
+    ${worlds.map((w) => {
+      const got = w.levels.reduce((sum, l) => sum + (p.progress[l.id]?.stars ?? 0), 0);
       return `<section class="world" id="w-${w.id}">
         <div class="world-head">${clefIcon(w.clefIcon)}<div><h2>${esc(w.title)}</h2>${w.optional ? '<span class="opt">Opcional</span>' : ''}</div><span class="stars-count">${got} / ${w.levels.length * 3} ★</span></div>
         <p>${esc(w.description)}</p>
@@ -282,124 +292,140 @@ function screenMap() {
           ${w.levels.map((l) => {
             n++;
             const open = isUnlocked(l.id, p.progress);
-            const stars = p.progress[l.id]?.stars ?? 0;
+            const prog = p.progress[l.id];
             const cls = !open ? 'locked' : l.id === next.id ? 'current' : '';
-            return `<button class="lvl ${cls}" type="button" ${open ? `data-go="level/${l.id}"` : 'disabled'} aria-label="Nivel ${n}: ${esc(l.title)}${open ? '' : ' (bloqueado)'}"><span class="dot">${n}</span>${miniStars(stars)}</button>`;
+            const seal = prog?.consolidated ? '<i class="seal" title="Consolidado: superado en dos días distintos"></i>' : '';
+            return `<button class="lvl ${cls}" type="button" ${open ? `data-go="level/${l.id}"` : 'disabled'} aria-label="Nivel ${n}: ${esc(l.title)}${open ? '' : ' (bloqueado)'}"><span class="dot">${n}${seal}</span>${miniStars(prog?.stars ?? 0)}</button>`;
           }).join('')}
         </div>
       </section>`;
     }).join('')}`);
   bindNav(root);
+  onSeg(root, (_, v) => go(`map/${v}`));
   root.querySelector('.lvl.current')?.scrollIntoView({ block: 'center' });
+  void s;
 }
 
 // ---------- ficha de nivel ----------
 
-function poolItems(level, naming, { onlyNew = false } = {}) {
-  const seen = new Set();
-  return level.pool
-    .filter((p) => (seen.has(p.key) ? false : seen.add(p.key)))
-    .filter((p) => !onlyNew || level.newKeys.includes(p.key))
-    .sort((a, b) => (a.clef === b.clef ? 0 : a.clef === 'bass' ? -1 : 1) || a.pos - b.pos)
-    .map((p) => ({
-      clef: p.clef,
-      pos: p.pos,
-      shownAlt: p.shownAlt,
-      label: displayName(p.note, naming),
-      halo: level.newKeys.includes(p.key),
-      data: noteId(p.note),
-      isNew: level.newKeys.includes(p.key),
-    }));
+// «Nivel 12» en lectura, «Teoría 5» en teoría.
+const levelTag = (def) => `${def.area === 'teoria' ? 'Teoría' : 'Nivel'} ${levelNumber(def)}`;
+
+// Número del nivel dentro de su pestaña (lectura o teoría).
+function levelNumber(def) {
+  return LEVELS.filter((l) => (l.area ?? 'lectura') === (def.area ?? 'lectura')).indexOf(def) + 1;
 }
 
-// Ficha del nivel: primero la lección (qué hay de nuevo, con los pájaros llegando al pentagrama),
-// luego «Pruébalo» con el mismo teclado de la partida, y por último los objetivos.
+// Ficha del nivel: primero la lección (qué hay de nuevo, con los pájaros llegando al pentagrama o
+// con ejemplos dibujados en teoría), luego «Pruébalo» con los mismos botones de la partida, y los objetivos.
 function screenIntro(id) {
   const def = levelById(id);
   const p = store.activeProfile();
   if (!def || !isUnlocked(id, p.progress)) return go('map');
-  const level = buildLevel(def);
   const s = store.settings();
+  const level = buildLevel(def, { naming: s.naming });
   const world = WORLDS.find((w) => w.id === def.world);
-  const idx = LEVELS.indexOf(def) + 1;
   const prog = p.progress[id];
   const travel = (level.travelMs * s.pace) / 1000;
   const firstOfWorld = world.levels[0].id === id;
   const { lesson } = level;
+  const saved = store.savedGame()?.arg === id ? store.savedGame() : null;
+  const unit = level.theory ? (level.pool[0]?.parts ? 'melodías' : 'preguntas') : 'notas';
   const root = render(`
-    ${topbar(`Nivel ${idx}`, 'map')}
+    ${topbar(`${level.theory ? 'Teoría' : 'Nivel'} ${levelNumber(def)}`, `map/${def.area ?? 'lectura'}`)}
     <section class="lesson">
       <p class="muted">${esc(world.title)}${level.key ? ` · ${keyName(level.key, s.naming)}` : ''}</p>
       ${firstOfWorld && world.intro ? `<p class="world-intro">${esc(world.intro)}</p>` : ''}
       <h2 class="lesson-title">${esc(lesson.title)}</h2>
       <div class="lesson-slot"></div>
       <div class="lesson-text">${lesson.text.map((t) => `<p>${esc(t)}</p>`).join('')}</div>
-      <button class="btn ghost replay" type="button" data-act="replay">Ver y oír otra vez</button>
+      ${lesson.example ? `<p class="example"><b>Ejemplo</b>${esc(lesson.example)}</p>` : ''}
+      ${level.theory ? '' : '<button class="btn ghost replay" type="button" data-act="replay">Ver y oír otra vez</button>'}
     </section>
     <section class="quiz group">
       <div class="quiz-head"><h2>Pruébalo</h2><span class="quiz-dots" aria-hidden="true"></span></div>
-      <p class="muted small quiz-msg">${level.answer === 'linespace' ? '¿Línea o espacio?' : 'Nombra el pájaro.'} Si fallas, verás la respuesta.</p>
+      <p class="muted small quiz-msg"></p>
       <div class="quiz-staff"></div>
       <div class="quiz-pad"></div>
     </section>
     <section class="group level-goals">
       <h2>Para ganar estrellas</h2>
       <div class="chips">
-        <span class="chip">${level.count} notas</span>
+        <span class="chip">${level.count} ${unit}</span>
         <span class="chip">${level.mode === 'calm' ? 'Sin prisa' : `${level.warmup ? 'Empieza sin prisa, luego con tiempo' : 'Con tiempo'}: ${travel.toLocaleString('es-ES', { maximumFractionDigits: 1 })} s para cruzar`}</span>
         ${level.segments ? `<span class="chip">${level.segments.length} armaduras</span>` : ''}
         ${prog ? `<span class="chip">Récord ${prog.best.toLocaleString('es-ES')}</span>` : ''}
+        ${prog?.consolidated ? '<span class="chip">Consolidado</span>' : prog?.stars ? '<span class="chip">Vuelve otro día para consolidarlo</span>' : ''}
       </div>
       <ul class="goals">
-        <li>${miniStars(1)}<span>Acierta el ${pct(level.passAcc)} a la primera: abre el siguiente nivel.</span></li>
+        <li>${miniStars(1)}<span>Acierta el ${pct(level.passAcc)} a la primera: abre lo siguiente.</span></li>
         <li>${miniStars(2)}<span>Y responde en ${secs(effTarget(level, s) * 1.3)} o menos de media.</span></li>
         <li>${miniStars(3)}<span>Acierta el ${pct(Math.max(0.95, level.passAcc))} y responde en ${secs(effTarget(level, s))} o menos.</span></li>
       </ul>
     </section>
     <div class="actions">
-      ${store.savedGame()?.arg === id ? `<button class="btn primary" type="button" data-go="play/${id}/seguir">Seguir donde lo dejaste (${store.savedGame().state.resolved} de ${level.count})</button>` : ''}
-      <button class="btn ${store.savedGame()?.arg === id ? '' : 'primary'} play-btn" type="button" data-go="play/${id}">${store.savedGame()?.arg === id ? 'Empezar de nuevo' : 'Jugar'}</button>
+      ${saved ? `<button class="btn primary" type="button" data-go="play/${id}/seguir">Seguir donde lo dejaste (${saved.state.resolved} de ${level.count})</button>` : ''}
+      <button class="btn ${saved ? '' : 'primary'} play-btn" type="button" data-go="play/${id}">${saved ? 'Empezar de nuevo' : 'Jugar'}</button>
       <button class="btn" type="button" data-go="play/${id}/ayuda">Practicar con ayuda</button>
     </div>
     <p class="muted small">Con ayuda se ilumina la respuesta correcta y no se ganan estrellas.</p>`);
   bindNav(root);
 
-  const showLesson = () => {
-    const items = lesson.show.map((it, i) => ({
-      clef: it.clef,
-      pos: it.pos,
-      shownAlt: it.shownAlt,
-      label: level.answer === 'linespace' ? (isLine(it.pos) ? 'línea' : 'espacio') : displayName(it.note, s.naming),
-      halo: level.newKeys.includes(it.key),
-      isNew: level.newKeys.includes(it.key),
-      data: noteId(it.note),
-      i,
-    }));
-    const staff = miniStaff({
-      clefs: level.clefs,
-      key: level.key,
-      items,
-      bands: lesson.bands,
-      spacing: items.length > 10 ? 17 : 24,
-      birds: s.birds,
-      cls: 'intro-staff lesson-staff',
-      labelCls: (it) => (it.isNew ? 'new' : ''),
-    });
-    staff.style.setProperty('--player', p.color);
-    staff.addEventListener('pointerdown', (e) => {
-      const g = e.target.closest('[data-note]');
-      if (!g) return;
-      audio.unlock();
-      audio.playMidi(midi(parseNote(g.dataset.note)));
-    });
-    root.querySelector('.lesson-slot').replaceChildren(staff);
-    // Cada pájaro suena al posarse (la animación escalona su llegada).
-    const step = items.length > 8 ? 0.22 : 0.45;
-    staff.querySelectorAll('.note-hit').forEach((g, i) => g.style.setProperty('--d', `${i * step}s`));
-    items.forEach((it, i) => later(() => audio.playMidi(midi(parseNote(it.data)), { dur: 0.8, gain: 0.22 }), (i * step + 0.4) * 1000));
-  };
-  showLesson();
-  root.querySelector('[data-act="replay"]').addEventListener('click', () => { audio.unlock(); showLesson(); });
+  if (level.theory) {
+    // Ejemplos dibujados, uno por respuesta distinta, con la respuesta debajo.
+    const wrap = document.createElement('div');
+    wrap.className = 'samples';
+    for (const it of lesson.samples) {
+      const fig = document.createElement('figure');
+      fig.className = 'sample';
+      const svg = el('svg', { class: 'sample-board', role: 'img', preserveAspectRatio: 'xMidYMid meet' });
+      const { box } = drawBoard(svg, it, { birds: s.birds });
+      svg.setAttribute('viewBox', `${box[0] - 6} ${box[1] - 4} ${box[2] + 12} ${box[3] + 8}`);
+      svg.style.setProperty('--player', p.color);
+      fig.appendChild(svg);
+      fig.insertAdjacentHTML('beforeend', `<figcaption>${esc(it.label ?? it.answer ?? '')}</figcaption>`);
+      fig.addEventListener('pointerdown', () => { audio.unlock(); playSound(it); });
+      wrap.appendChild(fig);
+    }
+    root.querySelector('.lesson-slot').replaceWith(wrap);
+  } else {
+    const showLesson = () => {
+      const items = lesson.show.map((it, i) => ({
+        clef: it.clef,
+        pos: it.pos,
+        shownAlt: it.shownAlt,
+        label: level.answer === 'linespace' ? (isLine(it.pos) ? 'línea' : 'espacio') : displayName(it.note, s.naming),
+        halo: level.newKeys.includes(it.key),
+        isNew: level.newKeys.includes(it.key),
+        data: noteId(it.note),
+        i,
+      }));
+      const staff = miniStaff({
+        clefs: level.clefs,
+        key: level.key,
+        items,
+        bands: lesson.bands,
+        spacing: items.length > 10 ? 17 : 24,
+        birds: s.birds,
+        cls: 'intro-staff lesson-staff',
+        labelCls: (it) => (it.isNew ? 'new' : ''),
+      });
+      staff.style.setProperty('--player', p.color);
+      staff.addEventListener('pointerdown', (e) => {
+        const g = e.target.closest('[data-note]');
+        if (!g) return;
+        audio.unlock();
+        audio.playMidi(midi(parseNote(g.dataset.note)));
+      });
+      root.querySelector('.lesson-slot').replaceChildren(staff);
+      // Cada pájaro suena al posarse (la animación escalona su llegada).
+      const step = items.length > 8 ? 0.22 : 0.45;
+      staff.querySelectorAll('.note-hit').forEach((g, i) => g.style.setProperty('--d', `${i * step}s`));
+      items.forEach((it, i) => later(() => audio.playMidi(midi(parseNote(it.data)), { dur: 0.8, gain: 0.22 }), (i * step + 0.4) * 1000));
+    };
+    showLesson();
+    root.querySelector('[data-act="replay"]').addEventListener('click', () => { audio.unlock(); showLesson(); });
+  }
 
   mountQuiz(root, level, s, p.color, () => {
     const btn = root.querySelector('.play-btn');
@@ -408,15 +434,29 @@ function screenIntro(id) {
   });
 }
 
-// Mini prueba de 3 o 4 preguntas sobre lo nuevo del nivel, con el teclado elegido en Ajustes.
+// Sonido de un ítem de teoría (o de una nota suelta).
+function playSound(item) {
+  const snd = item.sound;
+  if (snd === null) return;
+  if (!snd) return audio.playMidi(midi(item.note));
+  if (snd.rhythm) return audio.playRhythm(snd.rhythm);
+  snd.forEach((x, i) => {
+    if (Array.isArray(x)) x.forEach((m) => audio.playMidi(m, { when: i * 0.32, gain: 0.22 }));
+    else audio.playMidi(x, { when: i * 0.28, gain: 0.26, dur: 0.9 });
+  });
+}
+
+// Mini prueba de 3 o 4 preguntas sobre lo nuevo del nivel, con los mismos botones de la partida.
 function mountQuiz(root, level, s, color, onDone) {
-  const unique = (arr) => arr.filter((p, i) => arr.findIndex((q) => q.key === p.key) === i);
+  const theory = level.theory;
+  const keyOf = (p) => (theory ? p.answer ?? p.key : p.key);
+  const unique = (arr) => arr.filter((p, i) => arr.findIndex((q) => keyOf(q) === keyOf(p)) === i);
   const focus = unique(level.newKeys.length ? level.pool.filter((p) => level.newKeys.includes(p.key)) : level.pool);
   const total = Math.min(4, Math.max(3, focus.length));
   const questions = [];
   while (questions.length < total) {
     const bag = [...focus].sort(() => Math.random() - 0.5);
-    for (const q of bag) if (questions.length < total && questions[questions.length - 1]?.key !== q.key) questions.push(q);
+    for (const q of bag) if (questions.length < total && keyOf(questions[questions.length - 1] ?? {}) !== keyOf(q)) questions.push(q);
     if (focus.length === 1) while (questions.length < total) questions.push(focus[0]);
   }
   let i = 0;
@@ -424,31 +464,62 @@ function mountQuiz(root, level, s, color, onDone) {
   const staffSlot = root.querySelector('.quiz-staff');
   const dots = root.querySelector('.quiz-dots');
   const msg = root.querySelector('.quiz-msg');
+  const linespace = level.answer === 'linespace';
+  const melody = !!level.pool[0]?.parts;
+  msg.textContent = `${melody ? '¿Cuál es la primera nota?' : linespace ? '¿Línea o espacio?' : theory ? 'Responde como en la partida.' : 'Nombra el pájaro.'} Si fallas, verás la respuesta.`;
   const renderDots = () => {
     dots.innerHTML = questions.map((_, k) => `<i class="${k < i ? 'done' : k === i ? 'now' : ''}"></i>`).join('');
   };
   const show = () => {
     const q = questions[i];
     missed = false;
-    const svg = miniStaff({
-      clefs: level.clefs,
-      key: level.key,
-      items: [{ clef: q.clef, pos: q.pos, shownAlt: q.shownAlt, halo: true, i: 0 }],
-      spacing: 70,
-      birds: s.birds,
-      cls: 'intro-staff quiz-svg lesson-staff',
-    });
+    let svg;
+    if (theory) {
+      svg = el('svg', { class: 'intro-staff quiz-svg board-quiz', role: 'img', preserveAspectRatio: 'xMidYMid meet' });
+      const { box } = drawBoard(svg, q, { birds: s.birds });
+      svg.setAttribute('viewBox', `${box[0] - 6} ${box[1] - 4} ${box[2] + 12} ${box[3] + 8}`);
+      if (q.prompt) msg.textContent = q.prompt;
+      if (q.options) pad.setChoices(q.options);
+    } else {
+      svg = miniStaff({
+        clefs: level.clefs,
+        key: level.key,
+        items: [{ clef: q.clef, pos: q.pos, shownAlt: q.shownAlt, halo: true, i: 0 }],
+        spacing: 70,
+        birds: s.birds,
+        cls: 'intro-staff quiz-svg lesson-staff',
+      });
+    }
     svg.style.setProperty('--player', color);
     staffSlot.replaceChildren(svg);
     renderDots();
   };
-  const alts = new Set(level.pool.map((p) => p.note.alt));
-  const rare = new Set(level.pool.filter((p) => (p.note.alt === 1 && [2, 6].includes(p.note.step)) || (p.note.alt === -1 && [0, 3].includes(p.note.step))).map((p) => `${p.note.step}:${p.note.alt}`));
-  const linespace = level.answer === 'linespace';
-  const check = (q, ans) => (linespace ? ans.choice === (isLine(q.pos) ? 'line' : 'space') : isCorrect(q.note, ans));
+  const notes = level.pool.flatMap((p) => (p.parts ? p.parts.map((x) => x.note) : p.note ? [p.note] : []));
+  const alts = new Set(notes.map((n) => n.alt));
+  const rare = new Set(notes.filter((n) => (n.alt === 1 && [2, 6].includes(n.step)) || (n.alt === -1 && [0, 3].includes(n.step))).map((n) => `${n.step}:${n.alt}`));
+  const target = (q) => (melody ? q.parts[0].note : q.note);
+  const check = (q, ans) => {
+    if (linespace) return ans.choice === (isLine(q.pos) ? 'line' : 'space');
+    if (theory && !melody) return ans.choice === q.answer;
+    return isCorrect(target(q), ans);
+  };
+  const correct = (q) => {
+    if (linespace) return { choice: isLine(q.pos) ? 'line' : 'space' };
+    if (theory && !melody) return { choice: q.answer };
+    const n = target(q);
+    return s.input === 'piano' ? { pc: pitchClass(n) } : { step: n.step, alt: n.alt };
+  };
+  const answerText = (q) => {
+    if (linespace) return isLine(q.pos) ? 'Línea' : 'Espacio';
+    if (theory && !melody) return q.label ?? q.answer;
+    return displayName(target(q), s.naming);
+  };
+  const padType = linespace ? 'choices' : level.pad?.type === 'notes' || !theory ? s.input : level.pad.type;
   const pad = createPad(root.querySelector('.quiz-pad'), {
-    mode: linespace ? 'choices' : s.input,
-    choices: [{ label: 'Línea', value: 'line' }, { label: 'Espacio', value: 'space' }],
+    mode: padType,
+    choices: linespace ? [{ label: 'Línea', value: 'line' }, { label: 'Espacio', value: 'space' }] : level.pad?.options ?? [],
+    first: level.pad?.first,
+    second: level.pad?.second,
     naming: s.naming,
     labels: s.pianoLabels,
     alts,
@@ -460,30 +531,36 @@ function mountQuiz(root, level, s, color, onDone) {
       if (check(q, ans)) {
         pad.flash(node, 'ok');
         pad.clearHints();
-        audio.playMidi(midi(q.note));
+        if (theory) playSound(melody ? { sound: [midi(target(q))] } : q);
+        else audio.playMidi(midi(q.note));
         staffSlot.querySelector('.bird')?.classList.add('flying-away');
         i++;
         renderDots();
         if (i >= total) {
-          msg.textContent = '¡Bien! Ya conoces lo nuevo. Ahora, a jugar.';
+          msg.textContent = '¡Bien! Ya lo tienes. Ahora, a jugar.';
           msg.classList.add('ok-msg');
+          staffSlot.querySelector('.quiz-explain')?.remove();
           onDone();
         } else {
-          later(show, 380);
+          later(() => { staffSlot.querySelector('.quiz-explain')?.remove(); show(); }, 380);
         }
       } else {
         pad.flash(node, 'bad');
         audio.sfx('wrong');
         if (!missed) {
           missed = true;
-          const svg = staffSlot.querySelector('svg');
-          const g = svg.querySelector('.note-hit');
-          const sys = new StaffSystem(level.clefs, level.key);
-          const y = sys.yFor(q.pos, q.clef);
-          const t = el('text', { x: 13, y: y + 3.5, 'text-anchor': 'start', class: 'quiz-answer' }, g);
-          t.textContent = linespace ? (isLine(q.pos) ? 'Línea' : 'Espacio') : displayName(q.note, s.naming);
+          if (theory) {
+            staffSlot.insertAdjacentHTML('beforeend', `<p class="quiz-explain"><b>${esc(answerText(q))}</b> ${esc(melody ? '' : q.explain ?? '')}</p>`);
+          } else {
+            const svg = staffSlot.querySelector('svg');
+            const g = svg.querySelector('.note-hit');
+            const sys = new StaffSystem(level.clefs, level.key);
+            const y = sys.yFor(q.pos, q.clef);
+            const t = el('text', { x: 13, y: y + 3.5, 'text-anchor': 'start', class: 'quiz-answer' }, g);
+            t.textContent = answerText(q);
+          }
         }
-        pad.hint(linespace ? { choice: isLine(q.pos) ? 'line' : 'space' } : s.input === 'piano' ? { pc: pitchClass(q.note) } : { step: q.note.step, alt: q.note.alt });
+        pad.hint(correct(q));
       }
     },
   });
@@ -503,11 +580,11 @@ function levelFor(arg) {
   }
   const def = levelById(arg);
   if (!def || !isUnlocked(arg, p.progress)) return null;
-  return buildLevel(def);
+  return buildLevel(def, { naming: store.settings().naming });
 }
 
 function levelLabel(level) {
-  return level.id ? `Nivel ${LEVELS.findIndex((l) => l.id === level.id) + 1}: ${level.title}` : level.title;
+  return level.id ? `${levelTag(levelById(level.id))}: ${level.title}` : level.title;
 }
 
 function screenPlay(arg, help = false, resume = null) {
@@ -528,6 +605,7 @@ function screenPlay(arg, help = false, resume = null) {
     resume,
     onSave: (state) => store.saveGame({ arg, title: levelLabel(level), count: level.count, state }),
     onEnd: (result) => {
+      result.paceChange = result.help ? 0 : adjustPace(level, result);
       if (!result.help) store.recordSession({
         arg,
         noCards: !!level.answer,
@@ -556,6 +634,20 @@ function screenPlay(arg, help = false, resume = null) {
   game.start();
 }
 
+// Ritmo automático: tras una partida con tiempo, se acelera un poco si va sobrada y se frena si
+// falla mucho, para rondar el 85 % de aciertos (docs/investigacion-pedagogia.md § 2.2).
+function adjustPace(level, result) {
+  const s = store.settings();
+  if (!s.autoPace || level.mode !== 'timed' || result.answers.length < 10) return 0;
+  let pace = s.pace;
+  if (result.accuracy >= 0.92 && result.medianMs !== null && result.medianMs <= result.targetMs * 0.8) pace = Math.max(0.8, pace * 0.93);
+  else if (result.accuracy < 0.8) pace = Math.min(2, pace * 1.08);
+  pace = Math.round(pace * 100) / 100;
+  if (pace === s.pace) return 0;
+  store.updateSettings({ pace });
+  return pace < s.pace ? -1 : 1;
+}
+
 // Qué le falta exactamente para la siguiente estrella.
 function nextStarTip(result, level) {
   const top = Math.max(0.95, level.passAcc);
@@ -571,10 +663,13 @@ function nextStarTip(result, level) {
 function screenResults(level, result, arg, prevBest) {
   if (result.help) result.stars = 0;
   const s = store.settings();
-  const next = level.id ? nextLevel(level.id) : null;
+  const next = level.id ? nextLevel(level.id, store.activeProfile().progress) : null;
   const record = level.id && result.score > prevBest && prevBest > 0;
-  const missedKeys = [...new Set(result.answers.filter((a) => !a.correct).map((a) => a.key))];
-  const missed = missedKeys.map((k) => level.pool.find((p) => p.key === k)).filter(Boolean);
+  // Lo fallado: notas (por su tarjeta) o preguntas de teoría (por su posición en el conjunto).
+  const wrong = result.answers.filter((a) => !a.correct);
+  const missed = level.theory
+    ? [...new Set(wrong.map((a) => a.idx))].map((i) => level.pool[i]).filter((it) => it && !it.parts)
+    : [...new Set(wrong.map((a) => a.key))].map((k) => level.pool.find((p) => p.key === k)).filter(Boolean);
   const ok = result.answers.filter((a) => a.correct).length;
   const title = result.help ? 'Ya conoces estas notas' : !result.stars ? 'Casi lo tienes' : result.stars === 3 ? '¡Perfecto!' : level.id ? '¡Nivel superado!' : '¡Bien hecho!';
   const back = level.id ? 'map' : level.world === 'review' ? 'review' : 'practice';
@@ -582,8 +677,9 @@ function screenResults(level, result, arg, prevBest) {
     <div class="result-head">
       <div class="big-stars">${[1, 2, 3].map((i) => star(i <= result.stars)).join('')}</div>
       <h1>${title}</h1>
-      ${result.help ? '<p class="muted">Ahora prueba sin ayuda para ganar estrellas.</p>' : !result.stars ? `<p class="muted">${level.id ? `Para abrir el siguiente nivel necesitas un ${pct(level.passAcc)} de aciertos. ` : ''}Las notas que fallaste saldrán más a menudo hasta que las domines.</p>` : result.stars < 3 ? `<p class="muted">${nextStarTip(result, level)}</p>` : ''}
+      ${result.help ? '<p class="muted">Ahora prueba sin ayuda para ganar estrellas.</p>' : !result.stars ? `<p class="muted">${level.id ? `Para abrir el siguiente nivel necesitas un ${pct(level.passAcc)} de aciertos. ` : ''}Lo que fallaste saldrá más a menudo hasta que lo domines.</p>` : result.stars < 3 ? `<p class="muted">${nextStarTip(result, level)}</p>` : ''}
     </div>
+    ${result.paceChange ? `<p class="pace-note">${result.paceChange < 0 ? 'Vas sobrada: los pájaros irán un poco más deprisa.' : 'Los pájaros irán un poco más despacio la próxima vez.'}</p>` : ''}
     <dl class="stats">
       <div class="stat"><dt>Aciertos a la primera</dt><dd>${ok} / ${result.answers.length}</dd></div>
       <div class="stat"><dt>Precisión</dt><dd>${pct(result.accuracy)}</dd></div>
@@ -592,7 +688,7 @@ function screenResults(level, result, arg, prevBest) {
     </dl>
     ${missed.length ? '<div class="group"><h2>Para repasar</h2><div class="missed-slot"></div></div>' : ''}
     ${!result.help && result.stars && next ? `<div class="teaser">
-      <span class="muted small">${next.world !== level.world ? `Nuevo mundo: ${esc(WORLDS.find((w) => w.id === next.world).title)}` : `Lo siguiente, en el nivel ${LEVELS.indexOf(next) + 1}`}</span>
+      <span class="muted small">${next.world !== level.world ? `Nuevo mundo: ${esc(WORLDS.find((w) => w.id === next.world).title)}` : `Lo siguiente: ${levelTag(next)}`}</span>
       <b>${esc(next.lesson?.title ?? next.title)}</b></div>` : ''}
     <div class="actions">
       ${result.help ? `<button class="btn primary" type="button" data-go="play/${arg}">Jugar sin ayuda</button>` : ''}
@@ -602,7 +698,13 @@ function screenResults(level, result, arg, prevBest) {
     </div>`);
   bindNav(root);
   root.querySelector('[data-act="again"]').addEventListener('click', () => screenPlay(arg, result.help));
-  if (missed.length) {
+  if (missed.length && level.theory) {
+    // En teoría, cada fallo con su respuesta y la regla que la explica.
+    const list = document.createElement('ul');
+    list.className = 'missed-list';
+    list.innerHTML = missed.slice(0, 6).map((it) => `<li><b>${esc(it.label ?? it.answer)}</b><span>${esc(it.explain)}</span></li>`).join('');
+    root.querySelector('.missed-slot').replaceWith(list);
+  } else if (missed.length) {
     const staff = miniStaff({
       clefs: level.clefs,
       key: level.key,
@@ -718,7 +820,7 @@ function screenProgress(tab) {
     ${p.totals.notes ? '<button class="btn" type="button" data-act="share">Compartir el progreso con tu profe</button><p class="share-msg muted small" hidden></p>' : ''}
     ${p.history.length ? `<h2 class="section-title">Últimas partidas</h2><ul class="history">${[...p.history].reverse().slice(0, 8).map((h) => {
       const lvl = h.levelId ? levelById(h.levelId) : null;
-      const name = lvl ? `Nivel ${LEVELS.indexOf(lvl) + 1}` : h.mode === 'review' ? 'Repaso' : 'Práctica';
+      const name = lvl ? levelTag(lvl) : h.mode === 'review' ? 'Repaso' : 'Práctica';
       const d = new Date(h.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
       return `<li><span>${name} · ${d}</span><span>${h.ok}/${h.n} ${h.stars ? miniStars(h.stars) : ''}</span></li>`;
     }).join('')}</ul>` : ''}`);
@@ -769,7 +871,7 @@ function progressSummary() {
   const next = nextToPlay(p.progress);
   const lines = [
     `Progreso de ${p.name} en Pío (lectura de notas)`,
-    `Estrellas: ${stars} de ${LEVELS.length * 3}. Va por el nivel ${LEVELS.indexOf(next) + 1}: ${next.title}.`,
+    `Estrellas: ${stars} de ${LEVELS.length * 3}. Va por ${levelTag(next)}: ${next.title}.`,
     `Notas leídas: ${p.totals.notes}, con un ${pct(p.totals.notes ? p.totals.correct / p.totals.notes : 0)} de aciertos. Racha: ${p.streak.count} días.`,
   ];
   for (const clef of Object.keys(CLEF_NAMES)) {
@@ -984,10 +1086,14 @@ function screenSettings() {
       ${seg('input', [['names', 'Botones'], ['piano', 'Teclado de piano']], s.input)}
       <p class="hint">El teclado une cada nota con su tecla; los botones obligan a escribir bien las alteraciones (Fa♯ no es Sol♭).</p></div>
     ${toggle('pianoLabels', 'Nombres en las teclas del piano')}
+    <div class="group"><span class="lbl">Con piano, tocar en la octava escrita</span>
+      ${seg('pianoOctave', [['auto', 'Desde el gran pentagrama'], ['exact', 'Siempre'], ['any', 'Nunca']], s.pianoOctave ?? 'auto')}
+      <p class="hint">Con la octava escrita, el teclado tiene varias octavas: hay que tocar la tecla exacta, como en el piano de verdad.</p></div>
     <div class="group"><span class="lbl">Aspecto de las notas</span>
       ${seg('birds', [['true', 'Pájaros'], ['false', 'Notas clásicas']], String(s.birds))}</div>
+    ${toggle('autoPace', 'Ritmo automático', 'Pío ajusta la velocidad según cómo te va, para que no sea ni aburrido ni agobiante.')}
     <div class="group"><span class="lbl">Ritmo</span>
-      ${seg('pace', PACES, String(s.pace))}
+      ${seg('pace', PACES, String(PACES.reduce((best, [v]) => (Math.abs(v - s.pace) < Math.abs(best - s.pace) ? Number(v) : best), 1)))}
       <p class="hint">Ajusta el tiempo para cruzar y el objetivo de las estrellas. Para niños pequeños, «Muy tranquilo».</p></div>
     ${toggle('showAnswer', 'Enseñar la respuesta al fallar', 'Recomendado: ver el nombre correcto justo después del error ayuda a corregirlo.')}
     ${toggle('sound', 'Sonido')}
@@ -1095,7 +1201,7 @@ function route() {
   const [name, arg, extra] = location.hash.replace(/^#\/?/, '').split('/');
   if (!store.activeProfile() || name === 'players') return screenPlayers();
   switch (name) {
-    case 'map': return screenMap();
+    case 'map': return screenMap(arg);
     case 'level': return screenIntro(arg);
     case 'play': {
       const saved = store.savedGame();

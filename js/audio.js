@@ -62,6 +62,19 @@ export function playSequence(midis, gap = 0.16) {
   midis.forEach((m, i) => playMidi(m, { when: i * gap, dur: 0.9, gain: 0.24 }));
 }
 
+// Ritmo con golpes cortos (negra = 0,55 s); los valores negativos son silencios.
+export function playRhythm(values, beat = 0.55) {
+  if (!enabled || !ensure()) return;
+  let t = ctx.currentTime + 0.05;
+  values.forEach((v, i) => {
+    if (v > 0) {
+      const osc = voice(i === 0 ? 1320 : 1046, t, { dur: Math.min(0.25, v * beat * 0.8), type: 'triangle', gain: 0.18, attack: 0.002 });
+      osc.frequency.exponentialRampToValueAtTime(700, t + 0.08);
+    }
+    t += Math.abs(v) * beat;
+  });
+}
+
 export function sfx(kind) {
   if (!enabled || !ensure()) return;
   const t = ctx.currentTime;

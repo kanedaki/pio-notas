@@ -13,12 +13,16 @@
 
 import { parseNote, staffPos, keyAlters, noteId, naturalRange, noteAtPos } from './music.js';
 import { cardKey } from './adaptive.js';
+import { THEORY_WORLDS, ROUTE } from './curriculum-theory.js';
+import { generateItems } from './theory.js';
+
+export { ROUTE };
 
 const R = naturalRange;
 const on = (clef, ids) => ids.map((id) => `${clef}:${id}`);
 const T = (limit, target) => ({ limit, target });
 
-export const WORLDS = [
+const READING_WORLDS = [
   {
     id: 'inicio',
     title: 'Primeros pasos',
@@ -321,6 +325,7 @@ export const WORLDS = [
   },
   {
     id: 'gran1',
+    exact: true, // con piano, hay que tocar en la octava escrita
     title: 'Gran pentagrama',
     clefIcon: 'treble',
     description: 'Los dos pentagramas del piano a la vez.',
@@ -361,6 +366,7 @@ export const WORLDS = [
   },
   {
     id: 'adic',
+    exact: true, // con piano, hay que tocar en la octava escrita
     title: 'Líneas adicionales',
     clefIcon: 'treble',
     description: 'Más allá de los cinco cables: hasta el Do agudo y el Do más grave.',
@@ -474,6 +480,7 @@ export const WORLDS = [
   },
   {
     id: 'alter',
+    exact: true, // con piano, hay que tocar en la octava escrita
     title: 'Sostenidos y bemoles',
     clefIcon: 'treble',
     description: 'Las teclas negras: ♯ sube, ♭ baja y ♮ devuelve la nota a su sitio.',
@@ -568,6 +575,7 @@ export const WORLDS = [
   },
   {
     id: 'armad',
+    exact: true, // con piano, hay que tocar en la octava escrita
     title: 'Armaduras',
     clefIcon: 'treble',
     description: 'Los sostenidos y bemoles junto a la clave valen para toda la pieza.',
@@ -644,6 +652,7 @@ export const WORLDS = [
   },
   {
     id: 'final',
+    exact: true, // con piano, hay que tocar en la octava escrita
     title: 'Gran final',
     clefIcon: 'bass',
     description: 'Los desafíos de quien ya lee con soltura.',
@@ -689,81 +698,8 @@ export const WORLDS = [
     ],
   },
   {
-    id: 'alto',
-    title: 'Clave de do en 3.ª (viola)',
-    clefIcon: 'alto',
-    optional: true,
-    description: 'Opcional. Se abre al terminar la primera octava de sol.',
-    intro: 'La clave de do señala con su centro dónde está el Do central. En tercera línea es la clave de la viola.',
-    levels: [
-      {
-        id: 'alto-1', title: 'El Do central en el centro', clefs: ['alto'], requires: 'sol-5',
-        notes: ['B3', 'C4', 'D4'], newNotes: ['C4', 'B3', 'D4'], ...T(4, 2.0),
-        lesson: { title: 'El Do central, en la línea del medio', text: ['La clave de do abraza con su centro la tercera línea: ahí está el Do central.', 'Si está en el espacio de debajo y Re en el de encima.'] },
-      },
-      {
-        id: 'alto-2', title: 'Mi y La', clefs: ['alto'], notes: R('A3', 'E4'), newNotes: ['E4', 'A3'], ...T(4, 2.0),
-        lesson: { title: 'Mi y La', text: ['Mi se posa en la cuarta línea y La en la segunda.', 'Esta clave engaña a quien viene de la clave de sol: lee desde el Do central, no traduzcas.'] },
-      },
-      {
-        id: 'alto-3', title: 'Fa y Sol', clefs: ['alto'], notes: R('G3', 'F4'), newNotes: ['F4', 'G3'], ...T(3.5, 1.8),
-        lesson: { title: 'Fa y Sol', text: ['Fa está en el cuarto espacio y Sol en el primero.', 'Siguen alternándose línea y espacio, como en todas las claves.'] },
-      },
-      {
-        id: 'alto-4', title: 'Las cinco líneas', clefs: ['alto'], notes: R('F3', 'G4'), newNotes: ['G4', 'F3'], ...T(3, 1.7),
-        lesson: { title: 'Sol arriba, Fa abajo', text: ['Sol se posa en la quinta línea y Fa en la primera.', 'Ya conoces todas las líneas y espacios de la clave de viola.'] },
-      },
-      {
-        id: 'alto-5', title: 'Fuera del pentagrama', clefs: ['alto'], notes: R('E3', 'A4'), newNotes: ['A4', 'E3'], passAcc: 0.92, ...T(3, 1.6),
-        lesson: { title: 'La y Mi, fuera de los cables', text: ['La se posa encima del pentagrama y Mi cuelga debajo.', 'Son las mismas posiciones que el Sol y el Re de la clave de sol, pero con otro nombre.'] },
-      },
-      {
-        id: 'alto-6', title: 'Si y Do agudos', clefs: ['alto'], notes: R('E3', 'C5'), newNotes: ['B4', 'C5'], ...T(3, 1.7),
-        lesson: { title: 'Si y Do, por arriba', text: ['Si se posa en la primera línea adicional de arriba y Do cuelga sobre ella.', 'Ese Do está una octava por encima del Do central.'] },
-      },
-      {
-        id: 'alto-7', title: 'Desafío de la clave de viola', clefs: ['alto'], notes: R('C3', 'C5'), newNotes: ['D3', 'C3'], count: 30, passAcc: 0.92, ...T(2, 1.4),
-        lesson: { title: 'De Do a Do en clave de viola', text: ['Re se posa en la línea adicional de debajo y Do cuelga de ella: es el Do grave.', 'Dos octavas completas, del Do grave al Do agudo, cada vez más deprisa.'] },
-      },
-    ],
-  },
-  {
-    id: 'tenor',
-    title: 'Clave de do en 4.ª (tenor)',
-    clefIcon: 'tenor',
-    optional: true,
-    description: 'Opcional. Se abre al terminar el pentagrama de fa.',
-    intro: 'Con la clave de do en cuarta línea, el Do central sube a la cuarta línea. La usan el violonchelo, el fagot y el trombón en su registro agudo.',
-    levels: [
-      {
-        id: 'tenor-1', title: 'El Do central en la cuarta línea', clefs: ['tenor'], requires: 'fa-8',
-        notes: ['B3', 'C4', 'D4'], newNotes: ['C4', 'B3', 'D4'], ...T(4, 2.0),
-        lesson: { title: 'El Do central, en la cuarta línea', text: ['Aquí la clave de do abraza la cuarta línea: ahí está el Do central.', 'Si está en el espacio de debajo y Re en el de encima.'] },
-      },
-      {
-        id: 'tenor-2', title: 'La y Mi', clefs: ['tenor'], notes: R('A3', 'E4'), newNotes: ['A3', 'E4'], ...T(4, 2.0),
-        lesson: { title: 'La en el centro, Mi arriba', text: ['La se posa en la línea del medio y Mi en la quinta línea.', 'Cuenta siempre desde el Do central de la cuarta línea.'] },
-      },
-      {
-        id: 'tenor-3', title: 'Fa y Sol', clefs: ['tenor'], notes: R('F3', 'E4'), newNotes: ['F3', 'G3'], ...T(3.5, 1.8),
-        lesson: { title: 'Fa y Sol', text: ['Fa se posa en la segunda línea y Sol en el segundo espacio.', 'Los nombres cambian respecto a la clave de fa: mira bien la clave.'] },
-      },
-      {
-        id: 'tenor-4', title: 'Re y Mi graves', clefs: ['tenor'], notes: R('D3', 'E4'), newNotes: ['D3', 'E3'], ...T(3, 1.7),
-        lesson: { title: 'Re y Mi, abajo', text: ['Re se posa en la primera línea y Mi en el primer espacio.', 'Ya tienes todas las líneas y espacios de la clave de tenor.'] },
-      },
-      {
-        id: 'tenor-5', title: 'Fuera del pentagrama', clefs: ['tenor'], notes: R('C3', 'G4'), newNotes: ['F4', 'G4', 'C3'], ...T(2.5, 1.6),
-        lesson: { title: 'Por arriba y por abajo', text: ['Fa cuelga encima del pentagrama y Sol se posa en la primera línea adicional.', 'Por abajo, Do cuelga bajo la primera línea.'] },
-      },
-      {
-        id: 'tenor-6', title: 'Desafío de la clave de tenor', clefs: ['tenor'], notes: R('C3', 'G4'), count: 30, passAcc: 0.92, ...T(2, 1.4),
-        lesson: { title: 'Desafío: clave de tenor', text: ['Todas las notas de la clave de tenor, cada vez más deprisa.', 'Guía principal: el Do central de la cuarta línea.'], bands: ['C4'] },
-      },
-    ],
-  },
-  {
     id: 'experto',
+    exact: true, // con piano, hay que tocar en la octava escrita
     title: 'Para expertos',
     clefIcon: 'treble',
     optional: true,
@@ -793,6 +729,13 @@ export const WORLDS = [
   },
 ];
 
+// Lectura y teoría; el mundo de expertos (opcional) va al final.
+export const WORLDS = [
+  ...READING_WORLDS.filter((w) => !w.optional).map((w) => ({ ...w, area: 'lectura' })),
+  ...THEORY_WORLDS,
+  ...READING_WORLDS.filter((w) => w.optional).map((w) => ({ ...w, area: 'lectura' })),
+];
+
 // Notas guía de cada clave: se aprenden primero y sirven de referencia para contar.
 export const LANDMARKS = {
   treble: ['C4', 'G4', 'C5', 'G5', 'C6'],
@@ -808,25 +751,30 @@ export const CHART_TIPS = {
   tenor: 'La clave de do en cuarta línea pone el Do central en la cuarta línea. La usan el violonchelo, el fagot y el trombón en su registro agudo.',
 };
 
-// Lista plana. Cada nivel requiere el anterior de su mundo; el primero de un mundo de la ruta
-// principal requiere el último del mundo anterior; los mundos opcionales dicen qué requieren.
+// Lista plana. Cada nivel requiere el anterior de su mundo; el primero de un mundo de lectura
+// requiere el último del mundo de lectura anterior; teoría y opcionales dicen qué requieren.
 export const LEVELS = [];
 {
   let prevTrunk = null;
   for (const w of WORLDS) {
     w.levels.forEach((l, i) => {
-      const req = l.requires ?? (i > 0 ? w.levels[i - 1].id : w.optional ? null : prevTrunk);
-      LEVELS.push({ ...l, world: w.id, optional: !!w.optional, requires: req ? [].concat(req) : [] });
+      const req = l.requires ?? (i > 0 ? w.levels[i - 1].id : w.optional || w.area === 'teoria' ? null : prevTrunk);
+      LEVELS.push({ ...l, world: w.id, area: w.area, exact: !!w.exact, optional: !!w.optional, requires: req ? [].concat(req) : [] });
     });
-    if (!w.optional) prevTrunk = w.levels[w.levels.length - 1].id;
+    if (!w.optional && w.area === 'lectura') prevTrunk = w.levels[w.levels.length - 1].id;
   }
 }
 
 export const levelById = (id) => LEVELS.find((l) => l.id === id);
 
-export function nextLevel(id) {
-  const i = LEVELS.findIndex((l) => l.id === id);
-  return i >= 0 ? LEVELS[i + 1] ?? null : null;
+// Lo siguiente después de un nivel: el próximo de la ruta que ya esté abierto y sin estrellas.
+export function nextLevel(id, progress = {}) {
+  const i = ROUTE.indexOf(id);
+  const after = i >= 0 ? ROUTE.slice(i + 1) : [];
+  const nextId = after.find((x) => isUnlocked(x, progress) && !(progress[x]?.stars > 0));
+  if (nextId) return levelById(nextId);
+  const j = LEVELS.findIndex((l) => l.id === id);
+  return j >= 0 ? LEVELS[j + 1] ?? null : null;
 }
 
 export function isUnlocked(id, progress) {
@@ -834,11 +782,13 @@ export function isUnlocked(id, progress) {
   return !!l && l.requires.every((r) => (progress[r]?.stars ?? 0) > 0);
 }
 
-// El nivel que toca jugar: el primero abierto y sin estrellas de la ruta principal;
-// si está terminada, el primero abierto de los opcionales.
+// El nivel que toca jugar: el primero de la ruta (lectura y teoría intercaladas) abierto y sin
+// estrellas; si la ruta está terminada, el primero abierto de los opcionales.
 export function nextToPlay(progress) {
-  const open = LEVELS.filter((l) => isUnlocked(l.id, progress) && !(progress[l.id]?.stars > 0));
-  return open.find((l) => !l.optional) ?? open[0] ?? LEVELS[LEVELS.length - 1];
+  const open = (id) => isUnlocked(id, progress) && !(progress[id]?.stars > 0);
+  const inRoute = ROUTE.find(open);
+  if (inRoute) return levelById(inRoute);
+  return LEVELS.find((l) => open(l.id)) ?? levelById(ROUTE[ROUTE.length - 1]);
 }
 
 // Repite las notas afectadas por la armadura hasta que sean ~35 % de las que salen,
@@ -855,8 +805,58 @@ function boostAffected(pool, key) {
   return [...pool, ...extra];
 }
 
+const DEFAULT_PROMPTS = {
+  direction: '¿Cómo sigue la melodía?', interval: '¿Qué intervalo es?', quality: '¿Mayor, menor o justo?',
+  tone: '¿Tono o semitono?', figure: '¿Qué figura es?', value: '¿Cuántos tiempos dura?', rest: '¿Qué silencio es?',
+  triad: '¿Qué acorde es?',
+};
+
+// Nivel de teoría: los ítems salen del generador de su tipo (o de varios, si es mixto).
+function buildTheoryLevel(def, ctx) {
+  const parts = def.kind === 'mixed' ? def.from.map(levelById) : [def];
+  const pool = parts.flatMap((d) => generateItems(d, ctx).map((it) => ({
+    ...it,
+    options: it.options ?? (Array.isArray(d.options) ? d.options : undefined),
+    prompt: it.prompt ?? d.prompt ?? DEFAULT_PROMPTS[it.kind],
+    present: def.kind === 'mixed' ? 'board' : it.present,
+  })));
+  const present = pool.every((it) => it.present === 'board') ? 'board' : 'wire';
+  const clefs = def.clefs ?? [pool[0].clef ?? 'treble'];
+  const limit = def.limit ?? 4;
+  const ls = def.lesson ?? {};
+  // Ejemplos de la lección: un ítem de cada respuesta distinta (como mucho 3).
+  const seen = new Set();
+  const samples = pool.filter((it) => (seen.has(it.answer) ? false : seen.add(it.answer))).slice(0, 3);
+  return {
+    id: def.id,
+    world: def.world,
+    title: def.title,
+    theory: true,
+    kind: def.kind,
+    answer: null,
+    clefs,
+    key: 0,
+    segments: null,
+    pool,
+    newKeys: [],
+    lesson: { title: ls.title ?? def.title, text: [].concat(ls.text ?? []), example: ls.example ?? '', samples, show: [], bands: [] },
+    present,
+    pad: def.twoStep ? { type: 'twostep', ...def.options } : def.kind === 'melody' ? { type: 'notes' } : { type: 'choices', options: Array.isArray(def.options) ? def.options : [] },
+    mode: def.mode ?? (present === 'board' ? 'calm' : 'timed'),
+    count: def.count ?? (def.kind === 'melody' ? 8 : 20),
+    warmup: def.warmup ?? (present === 'wire' ? 4 : 0),
+    passAcc: def.passAcc ?? 0.9,
+    exactOctave: false,
+    spawnMs: def.spawnMs ?? limit * 1000,
+    travelMs: def.travelMs ?? limit * 2000,
+    targetMs: (def.target ?? 2.5) * 1000,
+  };
+}
+
 // Convierte la definición en un nivel jugable con su conjunto de tarjetas.
-export function buildLevel(def) {
+// ctx = { naming } para los textos de los niveles de teoría.
+export function buildLevel(def, ctx = {}) {
+  if (def.kind) return buildTheoryLevel(def, ctx);
   const clefs = def.clefs ?? ['treble'];
   let keys = def.keys ?? [def.key ?? 0];
   if (def.keyChoices) keys = [...def.keyChoices].sort(() => Math.random() - 0.5).slice(0, def.keyCount ?? 3);
@@ -908,6 +908,9 @@ export function buildLevel(def) {
     pool,
     newKeys,
     lesson,
+    present: 'wire',
+    pad: { type: 'notes' },
+    exactOctave: !!def.exact,
     mode: def.mode ?? 'timed',
     count: def.count ?? 20,
     warmup: def.warmup ?? (def.newNotes?.length ? 5 : 0),

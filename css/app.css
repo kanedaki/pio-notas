@@ -666,3 +666,96 @@ select {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
+
+/* ---------- Teoría: carteles, preguntas y explicaciones ---------- */
+.stage { display: grid; grid-template-rows: auto 1fr; }
+.stage .staff, .stage .board { grid-row: 2; width: 100%; height: 100%; min-height: 0; display: block; }
+.stage .board { display: none; }
+.board-mode .stage .board { display: block; }
+.board-mode .stage .staff { display: none; }
+.prompt { grid-row: 1; margin: 0; padding: 4px 16px 0; text-align: center; font-weight: 750; font-size: 1.05rem; color: var(--ink); min-height: 1.4em; }
+.prompt:empty { display: none; }
+.board-in { animation: board-in 0.3s ease-out; transform-box: fill-box; transform-origin: center; }
+.board-out { animation: board-out 0.28s ease-in forwards; transform-box: fill-box; transform-origin: center; }
+@keyframes board-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+@keyframes board-out { to { opacity: 0; transform: translateY(-8px); } }
+
+.explain {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 0 0 2px var(--pink);
+  font-size: 0.95rem;
+  line-height: 1.35;
+  animation: drop 0.25s ease-out;
+}
+.explain b { color: var(--pink); font-size: 1.05rem; }
+
+.choices { display: grid; gap: 6px; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); }
+.choices.long { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.choices + .choices { margin-top: 6px; }
+.name-key.choice { min-height: clamp(52px, 9dvh, 84px); padding: 6px 8px; }
+.name-key.choice .main { font-size: clamp(1rem, 4.2vw, 1.25rem); line-height: 1.15; }
+.choices.long .name-key.choice .main { font-size: clamp(0.92rem, 3.8vw, 1.08rem); font-weight: 700; }
+.name-key.sel { box-shadow: 0 0 0 3px var(--ink); background: color-mix(in srgb, var(--sun) 35%, var(--card)); }
+.twostep-first.nudge { animation: bad 0.4s; }
+
+.piano-scroll { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.piano.wide { width: max(100%, calc(var(--whites) * 34px)); grid-template-columns: repeat(var(--whites), 1fr); }
+.piano.wide .key { touch-action: pan-x; }
+.piano.wide .key.black { width: calc(100% / var(--whites) * 0.62); left: calc((var(--after) + 1) * (100% / var(--whites)) - (100% / var(--whites) * 0.31)); }
+.piano.wide .key.white span { display: grid; justify-items: center; font-size: 0.85rem; }
+.piano.wide .key.white span i { font-style: normal; font-size: 0.6rem; font-weight: 700; color: var(--pink); }
+.key.white.middle-c { box-shadow: inset 0 -5px 0 #d5daea, 0 0 0 1px var(--line), inset 0 4px 0 var(--pink); }
+
+.twig { fill: none; stroke: var(--wire); stroke-width: 0.8; stroke-linecap: round; opacity: 0.6; }
+.cluster .halo { opacity: 0; }
+.bird.target.cluster .halo { opacity: 0.35; }
+.figure .halo { opacity: 0; }
+.bird.target.figure .halo { opacity: 0.35; }
+.board .cell .halo, .sample-board .halo, .board-quiz .halo { opacity: 0; }
+.board .cell.current .halo { opacity: 0.5; }
+.board .cell.done .head { fill: var(--ok); }
+.cell-answer, .quiz-answer { font: 800 8px var(--font); fill: var(--pink); }
+.pair-band { fill: var(--sun); opacity: 0.35; }
+.degree-n { font: 700 7px var(--font); fill: var(--muted); }
+.term { font: italic 700 22px Georgia, 'Times New Roman', serif; fill: var(--wire); }
+.tuplet, .volta { fill: none; stroke: var(--wire); stroke-width: 0.8; }
+.tuplet-n, .volta-n { font: italic 700 8px Georgia, serif; fill: var(--wire); }
+.slur { fill: var(--wire); }
+.board text, .sample-board text { paint-order: stroke; }
+
+.samples { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.sample { margin: 0; display: grid; gap: 4px; justify-items: center; padding: 10px 8px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); cursor: pointer; }
+.sample-board { width: 100%; height: 96px; }
+.sample figcaption { font-weight: 750; color: var(--ink); text-align: center; font-size: 0.95rem; }
+.example { display: grid; gap: 2px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--sun) 22%, var(--card)); }
+.example b { font-size: 0.8rem; color: var(--muted); font-weight: 750; }
+.quiz-svg.board-quiz { width: 100%; height: 150px; max-height: 170px; }
+.quiz-explain { margin: 6px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: 0 0 0 2px var(--pink); font-size: 0.92rem; }
+.quiz-explain b { color: var(--pink); }
+
+.seal { position: absolute; right: -4px; top: -4px; width: 16px; height: 16px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--paper); }
+.seal::after { content: ''; position: absolute; left: 5px; top: 3px; width: 4px; height: 7px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.screen > .seg[data-seg='area'] { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--paper); padding-block: 6px; }
+
+/* Notación de js/notation.js: todo son rellenos. Las figuras que caminan llevan el color del pájaro. */
+.notation { fill: var(--wire); }
+.bird .notation { fill: var(--bird); }
+.barline-thick { fill: var(--wire); }
+.explain[hidden], .prompt[hidden] { display: none; }
+
+/* El cartel no crece más de la cuenta: queda centrado en el escenario. */
+.board-mode .stage .board { max-height: 300px; align-self: center; }
+
+.missed-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.missed-list li { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--card); border-left: 4px solid var(--pink); }
+.missed-list b { color: var(--pink); }
+
+.pace-note { margin: 0; text-align: center; color: var(--muted); font-weight: 650; }

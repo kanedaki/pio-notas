@@ -7,11 +7,12 @@ test('ids únicos y requisitos que existen', () => {
   const ids = LEVELS.map((l) => l.id);
   assert.equal(new Set(ids).size, ids.length);
   for (const l of LEVELS) for (const r of l.requires) assert.ok(ids.includes(r), `${l.id} requiere ${r}`);
-  assert.ok(LEVELS.length >= 50, `hay ${LEVELS.length} niveles`);
+  assert.ok(LEVELS.length >= 90, `hay ${LEVELS.length} niveles`);
+  assert.ok(!LEVELS.some((l) => l.id.startsWith('alto') || l.id.startsWith('tenor')), 'solo piano: sin claves de do');
 });
 
-test('todos los niveles se construyen y tienen lección', () => {
-  for (const def of LEVELS) {
+test('todos los niveles de lectura se construyen y tienen lección', () => {
+  for (const def of LEVELS.filter((l) => !l.kind)) {
     const lvl = buildLevel(def);
     assert.ok(lvl.pool.length >= 2, def.id);
     assert.ok(lvl.lesson.title && lvl.lesson.text.length >= 1, `${def.id} sin lección`);
@@ -33,7 +34,7 @@ test('la ruta principal se abre en orden', () => {
   assert.ok(isUnlocked('sol-1', progress));
   assert.equal(nextToPlay(progress).id, 'sol-1');
   for (const l of LEVELS.filter((x) => !x.optional)) progress[l.id] = { stars: 2 };
-  assert.ok(isUnlocked('alto-1', progress));
+  assert.ok(isUnlocked('exp-1', progress));
   assert.ok(nextToPlay(progress).optional);
 });
 
