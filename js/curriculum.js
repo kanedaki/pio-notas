@@ -1013,9 +1013,11 @@ export function theoryDueCount(cards, now = Date.now()) {
 export const PLACEMENT_SIZE = 8;
 export const PLACEMENT_PASS = 7;
 
+// Disponible en todo mundo de más de un nivel que no esté terminado, aunque aún esté cerrado:
+// sirve precisamente para saltarse lo que ya se sabe.
 export function placementAvailable(world, progress) {
   if (world.levels.length < 2) return false;
-  return isUnlocked(world.levels[0].id, progress) && world.levels.some((l) => !(progress[l.id]?.stars > 0));
+  return world.levels.some((l) => !(progress[l.id]?.stars > 0));
 }
 
 // Reparte n huecos entre los niveles, empezando por el último (el más difícil) y dando la vuelta.

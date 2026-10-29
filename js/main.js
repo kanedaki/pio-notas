@@ -290,6 +290,10 @@ function screenHome() {
     <button class="btn ${saved ? '' : 'primary'} continue" type="button" data-go="level/${next.id}">
       <span>${first ? 'Empezar' : 'Seguir'}: ${levelTag(next).toLowerCase()}<small>${esc(world.title)} · ${esc(next.title)}</small></span>${ICONS.arrow}
     </button>
+    ${Object.keys(p.progress).length < 6 ? `<button class="placement" type="button" data-go="map">
+      <b>¿Ya sabes leer notas o teoría? Haz las pruebas de nivel</b>
+      <span>En el Camino, cada mundo tiene una: con ${PLACEMENT_PASS} de ${PLACEMENT_SIZE} aciertos te lo saltas.</span>
+    </button>` : ''}
     ${first ? '' : `<button class="daily ${daily.done ? 'done' : ''}" type="button" ${daily.done ? 'disabled' : 'data-go="play/daily"'}>
       <span class="daily-tag">Reto del día</span>
       <b>${esc(daily.title)}</b>
@@ -451,7 +455,7 @@ function screenMap(tab) {
       return `<section class="world" id="w-${w.id}">
         <div class="world-head">${clefIcon(w.clefIcon)}<div><h2>${esc(w.title)}</h2>${w.optional ? '<span class="opt">Opcional</span>' : ''}</div><span class="stars-count">${got} / ${w.levels.length * 3} ★</span></div>
         <p>${esc(w.description)}</p>
-        ${placementAvailable(w, p.progress) ? `<button class="placement" type="button" data-go="play/prueba-${w.id}"><b>¿Ya lo sabes? Prueba de nivel</b><span>${PLACEMENT_SIZE} preguntas: con ${PLACEMENT_PASS} aciertos, todo el mundo queda superado.</span></button>` : ''}
+        ${placementAvailable(w, p.progress) ? `<button class="placement" type="button" data-go="play/prueba-${w.id}"><b>¿Ya lo sabes? Prueba de nivel</b><span>${PLACEMENT_SIZE} preguntas: con ${PLACEMENT_PASS} aciertos, ${isUnlocked(w.levels[0].id, p.progress) ? 'todo el mundo queda superado' : 'se abre y queda superado aunque aún esté cerrado'}.</span></button>` : ''}
         <div class="wire-row">
           ${w.levels.map((l) => {
             n++;

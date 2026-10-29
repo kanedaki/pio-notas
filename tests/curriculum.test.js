@@ -82,6 +82,8 @@ test('prueba de nivel: 8 preguntas en cada mundo con más de un nivel', async ()
     if (lvl.segments) assert.ok(lvl.segments.every((s) => s.pool.length === 8 / lvl.segments.length), w.id);
   }
   assert.ok(!placementAvailable(WORLDS.find((w) => w.id === 'inicio'), {}), 'un mundo de un nivel no tiene prueba');
-  assert.ok(placementAvailable(WORLDS.find((w) => w.id === 'sol1'), { p1: { stars: 1 } }));
-  assert.ok(!placementAvailable(WORLDS.find((w) => w.id === 'fa1'), { p1: { stars: 1 } }), 'cerrado hasta abrir su primer nivel');
+  assert.ok(placementAvailable(WORLDS.find((w) => w.id === 'sol1'), {}), 'desde el principio');
+  assert.ok(placementAvailable(WORLDS.find((w) => w.id === 'calidad'), {}), 'también en mundos cerrados');
+  const sol1 = WORLDS.find((w) => w.id === 'sol1');
+  assert.ok(!placementAvailable(sol1, Object.fromEntries(sol1.levels.map((l) => [l.id, { stars: 1 }]))), 'no en mundos terminados');
 });

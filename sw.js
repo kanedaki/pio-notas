@@ -1,5 +1,5 @@
 // Caché para jugar sin conexión. Cambia VERSION al publicar archivos nuevos.
-const VERSION = 'pio-v6';
+const VERSION = 'pio-v7';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/game.js', 'js/staff.js', 'js/input.js', 'js/music.js', 'js/glyphs.js',

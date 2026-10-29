@@ -127,8 +127,8 @@ acierta ≥ 92 % muy por debajo del objetivo y se frena un 8 % si baja del 80 %.
 con un código familiar (sin cuentas). El servidor fusiona los datos sin perder nada (js/merge.js).
 
 **Pruebas de nivel** (docs/investigacion-teoria.md § 2.2): cada mundo con más de un nivel tiene, en el
-Camino, una prueba de 8 preguntas mezcladas, elegidas sobre todo de sus últimos niveles. Se ofrece en cuanto
-el primer nivel del mundo está abierto. Con 7 aciertos o más, todos sus niveles quedan superados con una
+Camino, una prueba de 8 preguntas mezcladas, elegidas sobre todo de sus últimos niveles. Se ofrece desde el
+principio en todo mundo sin terminar, aunque esté cerrado (el inicio enlaza a ellas mientras empieza). Con 7 aciertos o más, todos sus niveles quedan superados con una
 estrella (y abren lo que venga después); si no, se recomienda empezar por su primer nivel. En los mundos de
 lectura con varias claves se usa el gran pentagrama, y en los de armaduras la prueba cambia de armadura por
 tramos. Las melodías y la respuesta en dos toques quedan fuera de la prueba.
