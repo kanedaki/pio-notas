@@ -14,7 +14,8 @@
 // regla aplicada a esa pregunta. Lo fallado vuelve a salir a los pocos turnos.
 
 import { StaffSystem, makeBird, makeCluster, makeLabel, makeGhost, el } from './staff.js';
-import { drawBoard, drawFigure } from './boards.js';
+import { drawBoard, drawFigure, drawHook } from './boards.js';
+import { hookSound, songLabel, songById, parseHook } from './songs.js';
 import { createPad } from './input.js';
 import { isCorrect, midi, pitchClass, displayName, isLine, keyName, parseNote, staffPos } from './music.js';
 import { makeSelector, median } from './adaptive.js';
@@ -71,6 +72,15 @@ export class Game {
     this.segLen = Math.ceil(level.count / this.segments.length);
     const parts = level.pool[0]?.parts ? level.pool.reduce((s, it) => s + it.parts.length, 0) / level.pool.length : 1;
     this.expected = Math.round(level.count * parts);
+    // Canción secreta al final de los niveles de lectura: se lee primero y se descubre después.
+    const ss = level.secretSong;
+    this.songItem = ss && !help ? {
+      song: ss.song,
+      key: 'song',
+      parts: ss.parts.filter((p) => !p.rest).map((p) => ({ note: p.note, clef: p.clef, pos: p.pos, key: p.key })),
+      stim: { clef: ss.clef, key: ss.key, parts: ss.parts },
+      prompt: 'Canción secreta: lee sus notas en orden',
+    } : null;
     this.useSegment(0);
     if (resume) this.restore(resume);
     this.build();
@@ -296,7 +306,12 @@ export class Game {
     const { level } = this;
 
     if (!this.ended) {
-      if (this.phase === 'rescue') {
+      if (this.phase === 'song') {
+        if (!this.songSpawned && !this.birds.length && this.clock >= this.songAt) {
+          this.songSpawned = true;
+          this.spawn(this.songItem, true);
+        }
+      } else if (this.phase === 'rescue') {
         if (!this.birds.length && this.rescueQueue.length && this.clock >= this.rescueAt && this.clock - this.lastResolve >= 380) {
           this.spawn(this.rescueQueue.shift(), true);
         }
@@ -386,8 +401,13 @@ export class Game {
 
   // Explicación tras un fallo en teoría: la respuesta y la regla, hasta la siguiente pregunta.
   explain(item) {
-    this.explainEl.innerHTML = `<b>${item.label ?? item.answer}</b><span>${item.explain}</span>`;
+    const m = item.mnemonic;
+    this.explainEl.innerHTML = `<b>${item.label ?? item.answer}</b><span>${item.explain}</span>${m ? `<button class="mnemo" type="button">▶ Suena como el comienzo de «${m.song.title}»</button>` : ''}`;
     this.explainEl.hidden = false;
+    this.explainEl.querySelector('.mnemo')?.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      audio.playTimed(hookSound(parseHook(m.song.hook)));
+    });
   }
 
   makeTarget(b) {
@@ -406,7 +426,8 @@ export class Game {
   spawn(item, calm) {
     let b;
     if (this.boardMode) {
-      const drawn = drawBoard(this.boardSvg, item, { birds: this.settings.birds });
+      const drawn = item.song ? drawHook(this.boardSvg, item.stim) : drawBoard(this.boardSvg, item, { birds: this.settings.birds });
+      if (item.song) drawn.cells[0]?.classList.add('current');
       const [x, y, w, h] = drawn.box;
       this.boardSvg.setAttribute('viewBox', `${x - 8} ${y - 6} ${w + 16} ${h + 12}`);
       const g = this.boardSvg.firstElementChild;
@@ -614,6 +635,9 @@ export class Game {
       b.partSince = this.clock;
       this.pad.clearHints();
       if (b.part >= b.item.parts.length) {
+        if (this.phase === 'song') return this.songFinished(b);
+        const known = b.item.songId ? songById(b.item.songId) : null;
+        if (known) this.say(`¡Era ${songLabel(known)}!`, 2600);
         setTimeout(() => this.playItem(b.item), 250);
         this.resolve(b, 'fly');
       } else {
@@ -633,7 +657,7 @@ export class Game {
           this.streak = 0;
         }
         if (cell && this.settings.showAnswer) {
-          const t = el('text', { x: 0, y: (b.cellExt?.max ?? 50) + 12, 'text-anchor': 'middle', class: 'cell-answer' }, cell);
+          const t = el('text', { x: Number(cell.dataset.x ?? 0), y: (b.cellExt?.max ?? 50) + 12, 'text-anchor': 'middle', class: 'cell-answer' }, cell);
           t.textContent = this.itemName(b);
         }
       }
@@ -686,9 +710,31 @@ export class Game {
       this.resolved++;
       if (this.resolved >= this.level.count) this.startRescue();
       else this.save();
-    } else if (!this.rescueQueue.length && !this.birds.length) {
-      this.finish();
+    } else if (this.phase === 'rescue' && !this.rescueQueue.length && !this.birds.length) {
+      this.afterMain();
     }
+  }
+
+  // Tras la ronda (y el rescate), la canción secreta si el nivel tiene una.
+  afterMain() {
+    if (!this.songItem || this.phase === 'song') return this.finish();
+    this.phase = 'song';
+    this.boardMode = true;
+    this.root.querySelector('.game').classList.add('board-mode');
+    this.songAt = this.clock + 1600;
+    this.say('¡Canción secreta! Lee sus notas y descubre cuál es.', 2600);
+  }
+
+  songFinished(b) {
+    this.birds.shift();
+    b.outer.classList.remove('target');
+    this.songDone = true;
+    const song = this.songItem.song;
+    this.promptEl.textContent = `¡Era ${songLabel(song)}!`;
+    this.announce(`Era ${songLabel(song)}`);
+    audio.sfx('star');
+    const secs = audio.playTimed(hookSound(this.songItem.stim.parts));
+    setTimeout(() => this.finish(), Math.max(1500, secs * 1000 + 700));
   }
 
   // Lo fallado vuelve, de uno en uno y sin prisa, para responderlo bien.
@@ -700,7 +746,7 @@ export class Game {
       .map((a) => (a.idx >= 0 ? this.pool[a.idx] : all.find((p) => p.key === a.key)))
       .filter((p) => p && !p.parts)
       .slice(0, 8);
-    if (this.help || this.level.noRescue || !missed.length || this.segments.length > 1) return this.finish();
+    if (this.help || this.level.noRescue || !missed.length || this.segments.length > 1) return this.afterMain();
     this.phase = 'rescue';
     this.rescueQueue = missed;
     this.rescueAt = this.clock + 1500;
@@ -774,6 +820,8 @@ export class Game {
       bestStreak: this.bestStreak,
       answers: this.answers,
       stars,
+      song: this.songDone ? this.songItem.song : null,
+      songParts: this.songDone ? this.songItem.stim.parts : null,
     };
     setTimeout(() => this.onEnd(result), 900);
   }

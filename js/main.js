@@ -20,6 +20,8 @@ import { masteryLevel, dueCount, reviewKeys, recentAccuracy, median } from './ad
 import { SKINS, COLORS, HATS, birdSvg, findColor } from './look.js';
 import { ACHIEVEMENTS, seedsBalance, seedsFor, newAchievements, dailyChallenge } from './rewards.js';
 import { dayKey } from './merge.js';
+import { songsForLevel, intervalKey, intervalSongs, rhythmSongs, parseHook, hookSound, songLabel } from './songs.js';
+import { drawHook } from './boards.js';
 
 const app = document.getElementById('app');
 const DAILY_GOAL = 60;
@@ -56,6 +58,7 @@ const ICONS = {
   trophy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M7 6H4q0 4 4 4M17 6h3q0 4-4 4M12 13v4M8 20h8" class="tile-line"/></svg>',
   chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 10h18M3 14h18M3 18h18" class="tile-line"/><ellipse cx="9" cy="14" rx="2.4" ry="1.8"/><ellipse cx="15" cy="8" rx="2.4" ry="1.8"/></svg>',
   help: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" class="tile-line"/><path d="M9.5 9.5a2.6 2.6 0 1 1 3.4 2.5c-.6.3-.9.8-.9 1.5V14" class="tile-line"/><circle cx="12" cy="17" r="1.1"/></svg>',
+  note: '<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="8.5" cy="17.5" rx="4" ry="3" transform="rotate(-20 8.5 17.5)"/><path d="M12 17V4.5q4 .5 6 4" class="tile-line"/></svg>',
   bird: '<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="13" rx="7" ry="5.4" transform="rotate(-18 12 13)"/><path d="M5.6 12.6l-3.6 1.2 3.4 1.6z" class="tile-sun"/><path d="M17.4 10.6l4.4-3-1 4.4z"/></svg>',
 };
 
@@ -508,6 +511,7 @@ function screenIntro(id) {
       <div class="lesson-slot"></div>
       <div class="lesson-text">${lesson.text.map((t) => `<p>${esc(t)}</p>`).join('')}</div>
       ${lesson.example ? `<p class="example"><b>Ejemplo</b>${esc(lesson.example)}</p>` : ''}
+      <div class="song-slot"></div>
       ${level.theory ? '' : '<button class="btn ghost replay" type="button" data-act="replay">Ver y oír otra vez</button>'}
     </section>
     <section class="quiz group">
@@ -595,11 +599,80 @@ function screenIntro(id) {
     root.querySelector('[data-act="replay"]').addEventListener('click', () => { audio.unlock(); showLesson(); });
   }
 
+  mountLessonSongs(root.querySelector('.song-slot'), level, def, p.color);
+
   mountQuiz(root, level, s, p.color, () => {
     const btn = root.querySelector('.play-btn');
     btn.textContent = '¡Listo! Jugar';
     btn.classList.add('ready');
   });
+}
+
+// Canciones en la lección. Lectura: el comienzo de una canción escrito con las notas del nivel; se
+// lee y, al escucharla, se descubre cuál es. Teoría: canciones que empiezan con los intervalos del
+// nivel o que tienen su ritmo o compás, para recordar cómo suenan.
+function mountLessonSongs(slot, level, def, color) {
+  if (!slot) return;
+  if (!level.theory) {
+    const fit = songsForLevel(level)[0];
+    if (!fit) return slot.remove();
+    slot.innerHTML = `<section class="song-card">
+      <h3>${ICONS.note}Una canción con estas notas</h3>
+      <p class="muted small">Léela primero (¿cómo se llaman?) y luego escúchala para descubrir cuál es.</p>
+      <svg class="song-staff" role="img" aria-label="Comienzo de una canción" preserveAspectRatio="xMidYMid meet"></svg>
+      <button class="btn" type="button" data-act="reveal">▶ Escúchala</button>
+      <p class="song-title" hidden></p>
+    </section>`;
+    const svg = slot.querySelector('.song-staff');
+    const { box } = drawHook(svg, fit);
+    svg.setAttribute('viewBox', box.join(' '));
+    svg.style.setProperty('--player', color);
+    slot.querySelector('[data-act="reveal"]').addEventListener('click', () => {
+      audio.unlock();
+      audio.playTimed(hookSound(fit.parts));
+      const t = slot.querySelector('.song-title');
+      t.textContent = `Es ${songLabel(fit.song)}${fit.song.part ? ` (${fit.song.part})` : ''}.`;
+      t.hidden = false;
+    });
+    return;
+  }
+  // Teoría: un ejemplo por intervalo distinto (los más frecuentes del nivel) y los ritmos del nivel.
+  const rows = [];
+  const seenSong = new Set();
+  const byKey = new Map();
+  for (const it of level.pool) {
+    if (!it.mnemonic) continue;
+    const k = level.kind === 'interval' ? String(parseInt(it.mnemonic.key, 10)) : it.mnemonic.key;
+    if (!byKey.has(k)) byKey.set(k, it.mnemonic);
+  }
+  const QN = { M: 'mayor', m: 'menor', J: 'justa', A: 'aumentada', d: 'disminuida' };
+  for (const [, m] of [...byKey].sort((a, b) => parseInt(a[0], 10) - parseInt(b[0], 10)).slice(0, 6)) {
+    if (seenSong.has(m.song.id)) continue;
+    seenSong.add(m.song.id);
+    const n = parseInt(m.key, 10);
+    const name = level.kind === 'tone' ? (m.key === '2m' ? 'Semitono' : m.key === '2M' ? 'Tono' : `${n}.ª`) : `${n}.ª ${QN[m.key.slice(String(n).length)] ?? ''}`.trim();
+    rows.push({ label: `${name} ${m.dir === 'desc' ? '↘' : '↗'}`, song: m.song });
+  }
+  const TAG_NAMES = { anacrusa: 'Anacrusa', sincopa: 'Síncopa', contratiempo: 'Contratiempo', tresillo: 'Tresillo', puntillo: 'Puntillo', corcheas: 'Corcheas', negras: 'Negras', blancas: 'Blancas' };
+  for (const tag of level.songTags ?? []) {
+    for (const song of rhythmSongs(tag).slice(0, 2)) {
+      if (seenSong.has(song.id)) continue;
+      seenSong.add(song.id);
+      rows.push({ label: TAG_NAMES[tag] ?? tag, song });
+    }
+  }
+  if (!rows.length) return slot.remove();
+  slot.innerHTML = `<section class="song-card">
+    <h3>${ICONS.note}Para recordarlo, en canciones</h3>
+    <ul class="song-list">${rows.slice(0, 6).map((r, i) => `<li><button type="button" data-i="${i}"><span class="tag">${esc(r.label)}</span><span>${esc(songLabel(r.song))}</span><i>▶</i></button></li>`).join('')}</ul>
+  </section>`;
+  slot.querySelector('.song-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-i]');
+    if (!b) return;
+    audio.unlock();
+    audio.playTimed(hookSound(parseHook(rows[Number(b.dataset.i)].song.hook)));
+  });
+  void def;
 }
 
 // Sonido de un ítem de teoría (o de una nota suelta).
@@ -778,6 +851,11 @@ function screenPlay(arg, help = false, resume = null) {
   const s = store.settings();
   audio.unlock();
   if (!resume && !help) store.clearSaved();
+  if (!help && level.id && !level.theory && !level.daily) {
+    const fits = songsForLevel(level);
+    const pickFrom = fits.length > 1 ? fits.slice(1) : fits; // la primera ya sale en la lección
+    level.secretSong = pickFrom[Math.floor(Math.random() * pickFrom.length)] ?? null;
+  }
   const prevBest = level.id ? p.progress[level.id]?.best ?? 0 : 0;
   app.innerHTML = '<div class="play-root"></div>';
   const root = app.firstElementChild;
@@ -796,7 +874,7 @@ function screenPlay(arg, help = false, resume = null) {
         if (result.placementPassed) store.applyPlacement(level.placementLevels);
       }
       result.paceChange = result.help || level.placement ? 0 : adjustPace(level, result);
-      result.seeds = result.help ? 0 : seedsFor(store.activeProfile(), { levelId: level.id, answers: result.answers, stars: result.stars, daily: level.daily }) + (result.placementPassed ? 20 : 0);
+      result.seeds = result.help ? 0 : seedsFor(store.activeProfile(), { levelId: level.id, answers: result.answers, stars: result.stars, daily: level.daily }) + (result.placementPassed ? 20 : 0) + (result.song ? 10 : 0);
       if (!result.help) store.recordSession({
         arg,
         seeds: result.seeds,
@@ -911,6 +989,7 @@ function screenResults(level, result, arg, prevBest) {
       <h1>${title}</h1>
       ${result.help ? '<p class="muted">Ahora prueba sin ayuda para ganar estrellas.</p>' : !result.stars ? `<p class="muted">${level.id ? `Para abrir el siguiente nivel necesitas un ${pct(level.passAcc)} de aciertos. ` : ''}Lo que fallaste saldrá más a menudo hasta que lo domines.</p>` : result.stars < 3 ? `<p class="muted">${nextStarTip(result, level)}</p>` : ''}
     </div>
+    ${result.song ? `<button class="song-found" type="button" data-act="song">${ICONS.note}<span><small>Canción secreta</small><b>${esc(songLabel(result.song))}</b></span><i>▶</i></button>` : ''}
     ${result.seeds ? `<p class="seed-gain">${ICONS.seed}+${result.seeds} de alpiste</p>` : ''}
     ${(result.unlocked ?? []).slice(0, 3).map((a) => `<div class="unlocked"><span class="medal">${ICONS.trophy}</span><div><b>¡Logro! ${esc(a.name)}</b><span class="muted small">${esc(a.text)} +${a.reward} de alpiste</span></div></div>`).join('')}
     ${(result.unlocked ?? []).length > 3 ? `<p class="pace-note">Y ${result.unlocked.length - 3} logros más: míralos en Logros.</p>` : ''}
@@ -933,6 +1012,7 @@ function screenResults(level, result, arg, prevBest) {
     </div>`);
   bindNav(root);
   root.querySelector('[data-act="again"]').addEventListener('click', () => screenPlay(arg, result.help));
+  root.querySelector('[data-act="song"]')?.addEventListener('click', () => { audio.unlock(); audio.playTimed(hookSound(result.songParts)); });
   if (missed.length && level.theory) {
     // En teoría, cada fallo con su respuesta y la regla que la explica.
     const list = document.createElement('ul');
@@ -1235,6 +1315,8 @@ function screenHelp() {
         <li>${miniStars(3)}<span>Acertar el 95 % y responder rápido: ahí la lectura ya es casi automática.</span></li>
       </ul>
       <p>Las estrellas de arriba se apagan durante la partida cuando los fallos ya no permiten conseguirlas. No hay vidas: siempre terminas la ronda.</p></div>
+    <div class="group"><h2>Canciones</h2>
+      <p>Al terminar cada nivel de leer notas llega una canción secreta: lees sus notas y, al acabar, descubres cuál es. En las lecciones verás canciones con las notas nuevas, y en teoría, canciones que empiezan con cada intervalo o que tienen cada ritmo. Primero se lee y después se descubre la canción: si la reconoces antes, la tocarías de memoria en vez de leerla.</p></div>
     <div class="group"><h2>Pruebas de nivel</h2>
       <p>Si ya sabes lo que enseña un mundo, haz su prueba de nivel en el Camino: ${PLACEMENT_SIZE} preguntas mezcladas. Con ${PLACEMENT_PASS} aciertos, todos sus niveles quedan superados con una estrella y puedes pasar al siguiente.</p></div>
     <div class="group"><h2>Repaso</h2>

@@ -2,6 +2,9 @@
 // Cada nivel indica el tipo de pregunta (kind, ver js/theory.js), sus parámetros, los botones (options),
 // lo que requiere y su lección: texto corto, ejemplo resuelto y un ítem de muestra para dibujar.
 
+import { naturalRange } from './music.js';
+import { songMelodies } from './songs.js';
+
 const ORD = (n) => ({ value: String(n), label: `${n}.ª` });
 const opt = (pairs) => pairs.map(([value, label]) => ({ value: String(value), label }));
 const T = (limit, target) => ({ limit, target });
@@ -12,7 +15,9 @@ const QUAL = { M: 'mayor', m: 'menor', J: 'justa', A: 'aument.', d: 'dismin.' };
 const qual = (...qs) => qs.map((q) => ({ value: q, label: q, sub: QUAL[q] }));
 const ROMAN = opt(['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'].map((r) => [r, r]));
 const DEG_NAMES = opt(['tónica', 'supertónica', 'mediante', 'subdominante', 'dominante', 'superdominante', 'sensible'].map((n) => [n, n.charAt(0).toUpperCase() + n.slice(1)]));
-const MEL = ['E4 E4 F4 G4', 'G4 F4 E4 D4', 'C4 D4 E4 C4', 'E4 D4 C4 D4', 'G4 G4 A4 G4', 'C5 B4 A4 G4', 'E4 F4 G4 E4', 'D4 E4 F4 D4', 'G4 E4 C4', 'C4 E4 G4 C5', 'A4 G4 F4 E4', 'F4 A4 G4 F4'];
+// Melodías: comienzos de canciones conocidas que caben en Do4-Do5 (se descubre cuál es al leerla) y
+// algunas tradicionales.
+const MEL_TRAD = ['E4 E4 F4 G4', 'G4 F4 E4 D4', 'C4 D4 E4 C4', 'E4 D4 C4 D4', 'G4 G4 A4 G4', 'C5 B4 A4 G4', 'E4 F4 G4 E4', 'D4 E4 F4 D4', 'G4 E4 C4', 'C4 E4 G4 C5', 'A4 G4 F4 E4', 'F4 A4 G4 F4'];
 
 export const THEORY_WORLDS = [
   {
@@ -34,7 +39,7 @@ export const THEORY_WORLDS = [
         lesson: { title: 'Cuenta las banderitas', text: ['Cuenta los corchetes (las banderitas) o las barras: 1 = corchea, 2 = semicorchea, 3 = fusa. Cada banderita más hace la figura el doble de rápida.'], example: 'Plica con dos corchetes → 2 → semicorchea.' },
       },
       {
-        id: 'rit-3', title: '¿Cuánto dura?', kind: 'value', set: [{ dur: 1 }, { dur: 2 }, { dur: 4 }, { dur: 8 }, { dur: 16 }],
+        id: 'rit-3', songTags: ['corcheas', 'negras', 'blancas'], title: '¿Cuánto dura?', kind: 'value', set: [{ dur: 1 }, { dur: 2 }, { dur: 4 }, { dur: 8 }, { dur: 16 }],
         options: opt([['4', '4'], ['2', '2'], ['1', '1'], ['0.5', '½'], ['0.25', '¼']]), ...T(4, 2.2),
         lesson: { title: 'La negra vale 1', text: ['Si la negra vale 1 tiempo, la blanca vale 2 y la redonda 4. Hacia abajo se parte por la mitad: corchea ½, semicorchea ¼.'], example: 'Corchea = la mitad de una negra → ½ tiempo. Dos corcheas hacen 1 tiempo.' },
       },
@@ -44,7 +49,7 @@ export const THEORY_WORLDS = [
         lesson: { title: 'Silencios: duran pero no suenan', text: ['Cada figura tiene su silencio, que dura lo mismo pero sin sonar.', 'El de redonda cuelga de la 4.ª línea (pesa más) y el de blanca se sienta sobre la 3.ª, como un sombrero.'], example: 'Rectángulo colgando de la 4.ª línea → silencio de redonda.' },
       },
       {
-        id: 'rit-5', title: 'Puntillo y ligadura', kind: 'value',
+        id: 'rit-5', songTags: ['puntillo'], title: 'Puntillo y ligadura', kind: 'value',
         set: [{ dur: 2, dots: 1 }, { dur: 4, dots: 1 }, { dur: 8, dots: 1 }, { dur: 1, dots: 1 }, { dur: 4, dots: 1, rest: true }],
         ties: [[{ dur: 2 }, { dur: 4 }], [{ dur: 4 }, { dur: 8 }]],
         options: opt([['0.75', '¾'], ['1.5', '1½'], ['2.5', '2½'], ['3', '3'], ['6', '6']]), ...T(5, 2.6),
@@ -70,7 +75,7 @@ export const THEORY_WORLDS = [
         lesson: { title: 'Vecinas o separadas', text: ['Si la nota siguiente está en la línea o el espacio de al lado, es un paso (intervalo conjunto). Si se salta alguna línea o espacio, es un salto (intervalo disjunto).'], example: 'Sol (2.ª línea) → La (2.º espacio): vecinos → paso.' },
       },
       {
-        id: 'mel-1', title: 'Melodías cortas', kind: 'melody', melodies: MEL, requires: ['dir-2', 'sol-5'], count: 8, mode: 'calm', ...T(null, 2.0),
+        id: 'mel-1', title: 'Melodías cortas', kind: 'melody', melodies: [...songMelodies(naturalRange('C4', 'C5')), ...MEL_TRAD].slice(0, 16), requires: ['dir-2', 'sol-5'], count: 8, mode: 'calm', ...T(null, 2.0),
         lesson: { title: 'Lee como quien lee una frase', text: ['Ahora lee varias notas seguidas, como las palabras de una frase. Fíjate en si sube o baja y si va por pasos o saltos: así la siguiente nota casi la adivinas.'], example: 'Mi-Mi-Fa-Sol: se repite y luego sube por pasos → Mi, Mi, Fa, Sol (el «Himno de la alegría»).' },
       },
     ],
@@ -118,7 +123,7 @@ export const THEORY_WORLDS = [
     description: 'Cómo se agrupan los tiempos: 2/4, 3/4 y 4/4.',
     levels: [
       {
-        id: 'comp-1', title: '2/4, 3/4 y 4/4', kind: 'measure', variant: 'which', meters: ['2/4', '3/4', '4/4'], figures: [1, 2, 4, 8], requires: 'rit-3',
+        id: 'comp-1', songTags: ['2/4', '3/4', '4/4'], title: '2/4, 3/4 y 4/4', kind: 'measure', variant: 'which', meters: ['2/4', '3/4', '4/4'], figures: [1, 2, 4, 8], requires: 'rit-3',
         options: opt([['2/4', '2/4'], ['3/4', '3/4'], ['4/4', '4/4']]), mode: 'calm', ...T(null, 5),
         lesson: { title: 'Arriba, cuántos; abajo, cuáles', text: ['El número de arriba dice cuántos tiempos tiene cada compás; el de abajo, qué figura vale un tiempo (4 = negra). Se lee «dos por cuatro», «tres por cuatro», «cuatro por cuatro».'], example: 'Blanca + negra = 2 + 1 = 3 tiempos → 3/4.' },
       },
@@ -138,7 +143,7 @@ export const THEORY_WORLDS = [
         lesson: { title: 'Primero cada valor, luego la suma', text: ['Con puntillos y ligaduras se suma igual: primero calcula cuánto vale cada figura y luego súmalo. Cuatro semicorcheas valen 1 tiempo.'], example: '2/4 con negra con puntillo (1½) → falta ½: una corchea.' },
       },
       {
-        id: 'comp-5', title: 'Ritmos con nombre', kind: 'rhythm', requires: 'comp-4',
+        id: 'comp-5', songTags: ['anacrusa', 'sincopa', 'contratiempo', 'tresillo'], title: 'Ritmos con nombre', kind: 'rhythm', requires: 'comp-4',
         options: opt([['anacrusa', 'Anacrusa'], ['síncopa', 'Síncopa'], ['contratiempo', 'Contratiempo'], ['tresillo', 'Tresillo']]), mode: 'calm', ...T(null, 5),
         lesson: { title: 'Anacrusa, síncopa, contratiempo y tresillo', text: ['La anacrusa es el compás incompleto con el que empieza una obra. La síncopa empieza en parte débil y se alarga a la fuerte; el contratiempo suena en la débil tras un silencio.', 'El tresillo mete 3 corcheas en el tiempo de 2.'], example: 'Corchea-negra-corchea: la negra empieza en la mitad débil y cruza al tiempo siguiente → síncopa.' },
       },
@@ -274,17 +279,17 @@ export const THEORY_WORLDS = [
     description: '6/8, 9/8 y 12/8: tiempos que se dividen en tres.',
     levels: [
       {
-        id: 'cc-1', title: '¿3/4 o 6/8?', kind: 'measure', variant: 'which', meters: ['3/4', '6/8'], figures: [2, 4, 8], dots: true, requires: 'comp-6',
+        id: 'cc-1', songTags: ['3/4', '6/8'], title: '¿3/4 o 6/8?', kind: 'measure', variant: 'which', meters: ['3/4', '6/8'], figures: [2, 4, 8], dots: true, requires: 'comp-6',
         options: opt([['2/4', '2/4'], ['3/4', '3/4'], ['6/8', '6/8']]), mode: 'calm', ...T(null, 5),
         lesson: { title: 'De dos en dos o de tres en tres', text: ['6/8 tiene 6 corcheas por compás, igual que 3/4, ¡pero no se cuenta igual! En 6/8 hay 2 tiempos y cada uno es una negra con puntillo (3 corcheas).', 'Por eso las corcheas se agrupan de 3 en 3; en 3/4, de 2 en 2.'], example: 'Seis corcheas unidas en dos grupos de tres → 2 tiempos de negra con puntillo → 6/8.' },
       },
       {
-        id: 'cc-2', title: 'Contar en 6/8', kind: 'measure', variant: 'complete', meters: ['6/8'], figures: [2, 4, 8], dots: true, rests: true, unit: 'corchea', requires: 'cc-1',
+        id: 'cc-2', songTags: ['6/8'], title: 'Contar en 6/8', kind: 'measure', variant: 'complete', meters: ['6/8'], figures: [2, 4, 8], dots: true, rests: true, unit: 'corchea', requires: 'cc-1',
         options: opt([['completo', 'Completo'], ['falta', 'Falta'], ['sobra', 'Sobra']]), mode: 'calm', ...T(null, 5),
         lesson: { title: 'Piensa en corcheas', text: ['En 6/8 piensa en corcheas: la corchea vale 1, la negra 2, la negra con puntillo 3 y la blanca con puntillo 6 (un compás entero).'], example: 'Negra (2) + corchea (1) + negra con puntillo (3) = 6 → completo.' },
       },
       {
-        id: 'cc-3', title: '9/8 y 12/8', kind: 'measure', variant: 'which', meters: ['2/4', '3/4', '4/4', '6/8', '9/8', '12/8'], figures: [2, 4, 8], dots: true, requires: 'cc-2',
+        id: 'cc-3', songTags: ['6/8', '12/8'], title: '9/8 y 12/8', kind: 'measure', variant: 'which', meters: ['2/4', '3/4', '4/4', '6/8', '9/8', '12/8'], figures: [2, 4, 8], dots: true, requires: 'cc-2',
         options: opt(['2/4', '3/4', '4/4', '6/8', '9/8', '12/8'].map((m) => [m, m])), mode: 'calm', ...T(null, 5),
         lesson: { title: 'Divide entre tres', text: ['Los compuestos llevan 6, 9 o 12 arriba: divide entre 3 y sabrás los tiempos (6/8 = 2, 9/8 = 3, 12/8 = 4).', 'Cada compuesto es «primo» de un simple: 6/8 de 2/4, 9/8 de 3/4 y 12/8 de 4/4.'], example: 'Tres grupos de tres corcheas → 3 tiempos de negra con puntillo → 9/8.' },
       },

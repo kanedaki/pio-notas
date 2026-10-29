@@ -15,6 +15,7 @@ import { parseNote, staffPos, keyAlters, noteId, naturalRange, noteAtPos } from 
 import { cardKey } from './adaptive.js';
 import { THEORY_WORLDS, ROUTE } from './curriculum-theory.js';
 import { generateItems } from './theory.js';
+import { intervalKey, intervalSongs } from './songs.js';
 
 export { ROUTE };
 
@@ -811,6 +812,15 @@ const DEFAULT_PROMPTS = {
   triad: '¿Qué acorde es?',
 };
 
+// Canción que empieza con el intervalo de una pareja de notas, para recordar cómo suena.
+function mnemonicFor(it) {
+  if (!['interval', 'quality', 'tone'].includes(it.kind) || it.notes?.length !== 2) return null;
+  const ik = intervalKey(it.notes[0].note, it.notes[1].note);
+  if (!ik) return null;
+  const hit = intervalSongs(ik.key, it.arrangement === 'harmonic' ? 'asc' : ik.dir)[0];
+  return hit ? { ...ik, song: hit.song, dir: hit.dir } : null;
+}
+
 // Nivel de teoría: los ítems salen del generador de su tipo (o de varios, si es mixto).
 function buildTheoryLevel(def, ctx) {
   const parts = def.kind === 'mixed' ? def.from.map(levelById) : [def];
@@ -819,6 +829,7 @@ function buildTheoryLevel(def, ctx) {
     options: it.options ?? (Array.isArray(d.options) ? d.options : undefined),
     prompt: it.prompt ?? d.prompt ?? DEFAULT_PROMPTS[it.kind],
     present: def.kind === 'mixed' ? 'board' : it.present,
+    mnemonic: mnemonicFor(it),
   })));
   const present = pool.every((it) => it.present === 'board') ? 'board' : 'wire';
   const clefs = def.clefs ?? [pool[0].clef ?? 'treble'];
@@ -832,6 +843,7 @@ function buildTheoryLevel(def, ctx) {
     world: def.world,
     title: def.title,
     theory: true,
+    songTags: def.songTags ?? [],
     kind: def.kind,
     answer: null,
     clefs,

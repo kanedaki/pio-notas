@@ -2,7 +2,8 @@
 // armaduras, escalas, símbolos, melodías) y las figuras que caminan por el cable.
 // Usa js/notation.js para figuras, silencios, barras de compás y signos.
 
-import { el, StaffSystem, makeBird, makeCluster, SPACE } from './staff.js';
+import { el, glyph, StaffSystem, makeBird, makeCluster, SPACE } from './staff.js';
+import { GLYPHS } from './glyphs.js';
 import {
   drawNote, drawRest, drawBeamGroup, drawTie, drawTimeSig, drawBarline, drawHairpin, drawSymbol, drawMeasure,
 } from './notation.js';
@@ -58,6 +59,39 @@ function notesRow(g, { clef, fifths = 0, notes, spacing = 20, birds, startPad = 
   });
   const ext = sys.extent(notes.map((n) => ({ clef, pos: n.pos })));
   return { sys, width, xs, groups, ext };
+}
+
+// Comienzo de una canción en su pentagrama, con su ritmo (figuras reales, sin barras de compás).
+// parts: [{ rest, dur, dots, pos, shownAlt }]. Devuelve la caja para el viewBox y la x de cada nota.
+export function drawHook(svg, { clef, key = 0, parts }) {
+  svg.innerHTML = '';
+  const g = el('g', { class: 'board-in hook' }, svg);
+  const sys = new StaffSystem([clef], key);
+  const gap = (p) => 12 + 9 * Math.sqrt(p.beats ?? 4 / p.dur) + (p.shownAlt !== null && p.shownAlt !== undefined ? 7 : 0);
+  let x = sys.noteStartX + 10;
+  const xs = parts.map((p) => {
+    const at = x + (p.shownAlt !== null && p.shownAlt !== undefined ? 7 : 0);
+    x += gap(p);
+    return at;
+  });
+  const width = x + 4;
+  sys.draw(g, width);
+  const top = sys.topFor(clef);
+  const cells = []; // una por nota (sin silencios), para marcar las ya leídas
+  parts.forEach((p, i) => {
+    if (p.rest) return drawRest(g, { x: xs[i], top, dur: p.dur, dots: p.dots });
+    const cell = el('g', { class: 'cell', 'data-i': cells.length }, g);
+    if (p.shownAlt !== null && p.shownAlt !== undefined) {
+      const kind = p.shownAlt === 1 ? 'sharp' : p.shownAlt === -1 ? 'flat' : 'natural';
+      glyph(kind, xs[i] - 6 - GLYPHS[kind].adv * (10 / 250), sys.yFor(p.pos, clef), cell, 'accidental');
+    }
+    drawNote(cell, { x: xs[i], top, pos: p.pos, dur: p.dur, dots: p.dots });
+    cell.setAttribute('transform', 'translate(0 0)');
+    cell.dataset.x = xs[i];
+    cells.push(cell);
+  });
+  const ext = sys.extent(parts.filter((p) => !p.rest).map((p) => ({ clef, pos: p.pos })));
+  return { box: [-4, Math.min(ext.min, -22) - 4, width + 8, Math.max(ext.max, 62) - Math.min(ext.min, -22) + 14], xs, cells, ext };
 }
 
 function drawSymbolStim(g, s) {

@@ -42,6 +42,8 @@ descarguen la versión nueva.
 - Algoritmo adaptativo, repaso espaciado de notas y de teoría, niveles consolidados al superarlos en dos
   días, ritmo automático y ritmo según la edad.
 - Partida guardada y sincronización entre dispositivos con un código familiar.
+- Canciones conocidas: canción secreta al final de cada nivel, canciones con las notas de cada lección
+  y canciones para recordar intervalos y ritmos (solo el comienzo de cada una).
 - Su pájaro: temas de colores, colores y complementos que se compran con alpiste (se gana jugando),
   logros, reto del día y música de fondo en los menús.
 - Accesibilidad: letra grande, contraste alto, avisos para lectores de pantalla y «reducir movimiento».
@@ -52,6 +54,7 @@ descarguen la versión nueva.
 - [docs/investigacion-pedagogia.md](docs/investigacion-pedagogia.md): buenas prácticas para aprender a leer notas.
 - [docs/investigacion-teoria.md](docs/investigacion-teoria.md): currículo de teoría (Lenguaje Musical) y errores típicos.
 - [docs/diseno-niveles.md](docs/diseno-niveles.md): reglas del juego y currículo, con el porqué de cada decisión.
+- [docs/investigacion-canciones.md](docs/investigacion-canciones.md): canciones elegidas, verificación y cómo usarlas sin dejar de leer.
 - [docs/backlog.md](docs/backlog.md): lo que queda para más adelante.
 
 ## Estructura
@@ -64,6 +67,7 @@ descarguen la versión nueva.
 | `js/theory.js` | Generadores de preguntas de teoría |
 | `js/notation.js`, `js/boards.js` | Dibujo de figuras, compases y carteles de teoría |
 | `js/look.js`, `js/rewards.js` | Temas, complementos, alpiste, logros y reto del día |
+| `js/songs.js`, `js/songs-data.js` | Canciones: transporte a las notas del nivel, intervalos y ritmos |
 | `js/merge.js`, `js/sync.js` | Fusión de datos y sincronización entre dispositivos |
 | `js/adaptive.js` | Selección ponderada, refuerzo tras error y cajas de Leitner |
 | `js/game.js` | Motor de la partida |

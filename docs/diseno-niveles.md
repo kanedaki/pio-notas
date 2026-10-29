@@ -132,3 +132,16 @@ principio en todo mundo sin terminar, aunque esté cerrado (el inicio enlaza a e
 estrella (y abren lo que venga después); si no, se recomienda empezar por su primer nivel. En los mundos de
 lectura con varias claves se usa el gran pentagrama, y en los de armaduras la prueba cambia de armadura por
 tramos. Las melodías y la respuesta en dos toques quedan fuera de la prueba.
+
+**Canciones** (docs/investigacion-canciones.md): 64 comienzos de canciones conocidas (pop, rock, cine,
+series y videojuegos), como mucho 8 notas cada uno. Se usan sin romper la regla principal: primero se lee
+y después se descubre la canción, porque si se reconoce antes se toca de memoria en vez de leer.
+
+- Lección de cada nivel de lectura: una canción escrita con las notas del nivel (transportada); se lee y,
+  al escucharla, se descubre cuál es.
+- Canción secreta al final de cada nivel de lectura: se leen sus notas en orden y al acabar se revela,
+  suena y da 10 de alpiste. No cuenta para las estrellas.
+- Melodías cortas: comienzos de canciones en Do4-Do5 (se dice cuál era al terminar cada una).
+- Teoría: canciones que empiezan con cada intervalo (lección y explicación tras un fallo) y canciones
+  de ejemplo para compases y ritmos.
+- Los ejercicios con notas al azar siguen siendo el núcleo; las canciones son un añadido.

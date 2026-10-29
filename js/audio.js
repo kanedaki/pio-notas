@@ -62,6 +62,16 @@ export function playSequence(midis, gap = 0.16) {
   midis.forEach((m, i) => playMidi(m, { when: i * gap, dur: 0.9, gain: 0.24 }));
 }
 
+// Melodía con su ritmo: [{ midi | null, beats }], negra = beat segundos.
+export function playTimed(events, beat = 0.42) {
+  let t = 0;
+  for (const e of events) {
+    if (e.midi !== null) playMidi(e.midi, { when: t, dur: Math.max(0.35, e.beats * beat * 1.6), gain: 0.28 });
+    t += e.beats * beat;
+  }
+  return t;
+}
+
 // Ritmo con golpes cortos (negra = 0,55 s); los valores negativos son silencios.
 export function playRhythm(values, beat = 0.55) {
   if (!enabled || !ensure()) return;

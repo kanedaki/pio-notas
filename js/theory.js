@@ -785,8 +785,9 @@ function triad(def, { nm }) {
 
 function melodyKind(def, { nm, rnd = Math.random }) {
   const clef = def.clef ?? 'treble';
-  const list = def.melodies.map((m) => m.split(' ').map(parseNote));
-  return list.map((notes) => ({
+  const list = def.melodies.map((m) => (typeof m === 'string' ? { notes: m } : m));
+  return list.map(({ notes: text, song }) => ({ notes: text.split(' ').map(parseNote), song })).map(({ notes, song }) => ({
+    songId: song ?? null,
     key: `mel:${notes.map(noteId).join('-')}`,
     kind: 'melody',
     present: 'board',
